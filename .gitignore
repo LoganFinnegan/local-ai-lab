@@ -1,0 +1,22 @@
+# Large AI model files
+*.safetensors
+*.ckpt
+*.gguf
+*.bin
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Environment / secrets
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
