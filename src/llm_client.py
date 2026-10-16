@@ -4,79 +4,105 @@ import requests
 URL = "http://127.0.0.1:8080/v1/chat/completions"
 MODEL = "/home/logan/ai/models/llm/Qwen3-14B-Q4_K_M.gguf"
 
-prompt = input("Ask Qwen: ")
+SHOW_REASONING = False
 
-payload = {
-    "model": MODEL,
-    "messages": [
-        {
-            "role": "user",
-            "content": prompt,
-        }
-    ],
-    "stream": True,
-}
+messages = [
+    {
+        "role": "system",
+        "content": (
+            "You are a direct, technically capable assistant. "
+            "Assume the user is competent. "
+            "Answer the question without unnecessary praise, hand-holding, "
+            "or offers of additional help. "
+            "Be concise unless more detail is requested."
+        ),
+    }
+]
 
-try:
-    response = requests.post(
-        URL,
-        json=payload,
-        timeout=120,
-        stream=True,
-)
-    
-    response.raise_for_status()
+while True:
+    prompt = input("\n>>> ")
 
-except requests.exceptions.ConnectionError:
-    print("Could not connect to llama-server.")
-    raise SystemExit(1)
-
-except requests.exceptions.Timeout:
-    print("The request timed out.")
-    raise SystemExit(1)
-
-except requests.exceptions.HTTPError as error:
-    print(f"The server returned an HTTP error: {error}")
-    raise SystemExit(1)
-
-print()
-
-showing_reasoning = False
-showing_answer = False
-
-for line in response.iter_lines():
-    if not line:
-        continue
-
-    line = line.decode("utf-8")
-
-    if not line.startswith("data: "):
-        continue
-
-    data_text = line.removeprefix("data: ")
-
-    if data_text == "[DONE]":
+    if prompt.strip().lower() in ["exit", "quit"]:
         break
 
-    data = json.loads(data_text)
+    messages.append({
+        "role": "user",
+        "content": prompt,
+    })
 
-    delta = data["choices"][0]["delta"]
+    payload = {
+        "model": MODEL,
+        "messages": messages,
+        "stream": True,
+    }
 
-    reasoning = delta.get("reasoning_content") or ""
-    content = delta.get("content") or ""
+    try:
+        response = requests.post(
+            URL,
+            json=payload,
+            timeout=120,
+            stream=True,
+        )
 
-    if reasoning:
-        if not showing_reasoning:
-            print("[Reasoning]")
-            showing_reasoning = True
+        response.raise_for_status()
 
-        print(reasoning, end="", flush=True)
+    except requests.exceptions.ConnectionError:
+        print("Could not connect to llama-server.")
+        raise SystemExit(1)
 
-    if content:
-        if not showing_answer:
-            print("\n\n[Answer]")
-            showing_answer = True
+    except requests.exceptions.Timeout:
+        print("The request timed out.")
+        raise SystemExit(1)
 
-        print(content, end="", flush=True)
+    except requests.exceptions.HTTPError as error:
+        print(f"The server returned an HTTP error: {error}")
+        raise SystemExit(1)
 
-print()
+    print()
+
+    showing_reasoning = False
+    showing_answer = False
+    assistant_answer = ""
+
+    for line in response.iter_lines():
+        if not line:
+            continue
+
+        line = line.decode("utf-8")
+
+        if not line.startswith("data: "):
+            continue
+
+        data_text = line.removeprefix("data: ")
+
+        if data_text == "[DONE]":
+            break
+
+        data = json.loads(data_text)
+
+        delta = data["choices"][0]["delta"]
+
+        reasoning = delta.get("reasoning_content") or ""
+        content = delta.get("content") or ""
+
+        if SHOW_REASONING and reasoning:
+            if not showing_reasoning:
+                print("[Reasoning]")
+                showing_reasoning = True
+
+            print(reasoning, end="", flush=True)
+
+        if content:
+            if not showing_answer:
+                print("\n\n[Answer]")
+                showing_answer = True
+
+            print(content, end="", flush=True)
+            assistant_answer += content
+
+    print()
+
+    messages.append({
+        "role": "assistant",
+        "content": assistant_answer,
+    })
