@@ -39,24 +39,21 @@ def make_title(prompt):
 
 
 def choose_conversation():
-    offset = 0
-    limit = 5
+    initial_limit = 5
+    load_more_limit = 10
+
+    displayed_conversations = list_conversations(
+        limit=initial_limit,
+        offset=0,
+    )
 
     while True:
-        conversations = list_conversations(
-            limit=limit,
-            offset=offset,
-        )
-
         print("\nLocal AI\n")
 
-        if conversations:
-            if offset == 0:
-                print("Recent conversations:")
-            else:
-                print("Older conversations:")
+        if displayed_conversations:
+            print("Recent conversations:")
 
-            for conversation in conversations:
+            for conversation in displayed_conversations:
                 conversation_id, title, created_at, last_active = conversation
 
                 print(
@@ -66,20 +63,21 @@ def choose_conversation():
 
             print()
 
-        elif offset == 0:
+        else:
             print("No saved conversations yet.\n")
 
-        else:
-            print("No more saved conversations.\n")
-            offset = 0
-            limit = 5
-            continue
+        has_more = bool(
+            list_conversations(
+                limit=1,
+                offset=len(displayed_conversations),
+            )
+        )
 
         print("Press Enter to start a new chat")
         print("Enter a conversation ID to resume")
         print("Enter D <ID> to delete a conversation")
 
-        if conversations:
+        if has_more:
             print("Enter M to show more")
 
         choice = input("\n>>> ").strip()
@@ -88,8 +86,16 @@ def choose_conversation():
             return None
 
         if choice.lower() == "m":
-            offset += limit
-            limit = 10
+            if not has_more:
+                print("\nNo more saved conversations.")
+                continue
+
+            more_conversations = list_conversations(
+                limit=load_more_limit,
+                offset=len(displayed_conversations),
+            )
+
+            displayed_conversations.extend(more_conversations)
             continue
 
         if choice.lower().startswith("d "):
@@ -114,8 +120,10 @@ def choose_conversation():
                 delete_conversation(delete_id)
                 print(f"\nDeleted conversation {delete_id}.")
 
-                offset = 0
-                limit = 5
+                displayed_conversations = list_conversations(
+                    limit=initial_limit,
+                    offset=0,
+                )
 
             else:
                 print("\nDelete cancelled.")

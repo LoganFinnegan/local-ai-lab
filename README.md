@@ -125,6 +125,63 @@ The model itself is not being retrained and does not permanently remember the co
 
 Persistence comes from storing the conversation in SQLite and supplying that history to the model again on future requests.
 
+## First-Time Setup
+
+This project uses a Python virtual environment for its Python dependencies.
+
+From the repository root, create the virtual environment:
+
+```bash
+python -m venv .venv
+```
+
+Activate it:
+
+```bash
+source .venv/bin/activate
+```
+
+Install the Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+When the virtual environment is active, the terminal prompt should normally begin with:
+
+```text
+(.venv)
+```
+
+The virtual environment itself is local to the machine and is excluded from Git. `requirements.txt` records the Python packages needed to recreate it.
+
+### External Requirements
+
+The Python virtual environment does not install the local AI runtime itself.
+
+The current development setup also requires:
+
+- AMD GPU drivers
+- ROCm
+- a working `llama.cpp` build with AMD/HIP support
+- the Qwen3-14B-Q4_K_M GGUF model
+
+The current helper script expects:
+
+```text
+llama.cpp:
+~/ai/llama.cpp
+
+model:
+~/ai/models/llm/Qwen3-14B-Q4_K_M.gguf
+```
+
+These paths can be changed in:
+
+```text
+scripts/start_llama_server.sh
+```
+
 ## Running the LLM Environment
 
 Two helper scripts are included:
@@ -169,6 +226,12 @@ python src/llm_client.py
 ```
 
 ### Manual Startup
+
+Activate the Python virtual environment if it is not already active:
+
+```bash
+source .venv/bin/activate
+```
 
 The same components can be started without VS Code.
 
