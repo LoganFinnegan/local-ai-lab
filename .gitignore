@@ -21,3 +21,6 @@ venv/
 # OS/editor noise
 .DS_Store
 Thumbs.db
+
+# Local application data
+data/*.db
