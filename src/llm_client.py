@@ -1,5 +1,8 @@
 import json
+
 import requests
+
+from context_manager import fit_messages_to_budget
 
 from database import (
     conversation_exists,
@@ -13,9 +16,21 @@ from database import (
 
 
 URL = "http://127.0.0.1:8080/v1/chat/completions"
+TOKEN_COUNT_URL = (
+    "http://127.0.0.1:8080/v1/chat/completions/input_tokens"
+)
+PROPS_URL = "http://127.0.0.1:8080/props"
+
 MODEL = "/home/logan/ai/models/llm/Qwen3-14B-Q4_K_M.gguf"
 
+MAX_OUTPUT_TOKENS = 4096
+
+# Temporary development override.
+# Set this to None before the feature is finished.
+DEVELOPMENT_INPUT_TOKEN_BUDGET = None
+
 SHOW_REASONING = False
+SHOW_CONTEXT_USAGE = True
 
 SYSTEM_MESSAGE = {
     "role": "system",
@@ -27,6 +42,38 @@ SYSTEM_MESSAGE = {
         "Be concise unless more detail is requested."
     ),
 }
+
+
+def get_context_window_tokens():
+    response = requests.get(
+        PROPS_URL,
+        timeout=30,
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    return data["default_generation_settings"]["n_ctx"]
+
+
+def count_input_tokens(messages):
+    payload = {
+        "model": MODEL,
+        "messages": messages,
+    }
+
+    response = requests.post(
+        TOKEN_COUNT_URL,
+        json=payload,
+        timeout=30,
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    return data["input_tokens"]
 
 
 def make_title(prompt):
@@ -148,6 +195,35 @@ def choose_conversation():
 
 initialize_database()
 
+context_window_tokens = get_context_window_tokens()
+
+if context_window_tokens <= MAX_OUTPUT_TOKENS:
+    raise SystemExit(
+        "Invalid context configuration: "
+        f"llama-server has a {context_window_tokens:,}-token "
+        f"context window, but the client reserves "
+        f"{MAX_OUTPUT_TOKENS:,} tokens for output."
+    )
+
+normal_input_token_budget = (
+    context_window_tokens - MAX_OUTPUT_TOKENS
+)
+
+if DEVELOPMENT_INPUT_TOKEN_BUDGET is not None:
+    input_token_budget = min(
+        normal_input_token_budget,
+        DEVELOPMENT_INPUT_TOKEN_BUDGET,
+    )
+
+    print(
+        "\nDevelopment context-budget override enabled: "
+        f"{input_token_budget:,} tokens"
+    )
+
+else:
+    input_token_budget = normal_input_token_budget
+
+
 conversation_id = choose_conversation()
 
 messages = [SYSTEM_MESSAGE]
@@ -173,10 +249,6 @@ while True:
     if prompt.strip().lower() in ["exit", "quit"]:
         break
 
-    if conversation_id is None:
-        title = make_title(prompt)
-        conversation_id = create_conversation(title)
-
     user_message = {
         "role": "user",
         "content": prompt,
@@ -184,16 +256,68 @@ while True:
 
     messages.append(user_message)
 
+    try:
+        (
+            request_messages,
+            full_input_tokens,
+            fitted_input_tokens,
+            omitted_messages,
+        ) = fit_messages_to_budget(
+            messages,
+            input_token_budget,
+            count_input_tokens,
+        )
+
+    except ValueError as error:
+        messages.pop()
+        print(f"\nCould not send message: {error}")
+        continue
+
+    if conversation_id is None:
+        title = make_title(prompt)
+        conversation_id = create_conversation(title)
+
     save_message(
         conversation_id,
         "user",
         prompt,
     )
 
+    if SHOW_CONTEXT_USAGE:
+        if omitted_messages:
+            omitted_tokens = (
+                full_input_tokens - fitted_input_tokens
+            )
+
+            print(
+                f"\nFull conversation input: "
+                f"{full_input_tokens:,} tokens"
+            )
+
+            print(
+                f"Context sent: "
+                f"{fitted_input_tokens:,} / "
+                f"{input_token_budget:,} tokens"
+            )
+
+            print(
+                f"Older context omitted: "
+                f"{omitted_tokens:,} tokens across "
+                f"{omitted_messages} messages"
+            )
+
+        else:
+            print(
+                f"\nContext input: "
+                f"{fitted_input_tokens:,} / "
+                f"{input_token_budget:,} tokens"
+            )
+
     payload = {
         "model": MODEL,
-        "messages": messages,
+        "messages": request_messages,
         "stream": True,
+        "max_tokens": MAX_OUTPUT_TOKENS,
     }
 
     try:
@@ -274,4 +398,3 @@ while True:
         "assistant",
         assistant_answer,
     )
-    
