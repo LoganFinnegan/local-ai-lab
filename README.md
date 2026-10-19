@@ -82,6 +82,10 @@ The Python client currently supports:
 - Listing recent conversations
 - Loading older conversations
 - Deleting conversations with confirmation
+- Runtime context-window detection from llama.cpp
+- Token-aware context budgeting
+- Automatic truncation of older conversation turns when necessary
+- Context-usage reporting during development
 - Local-only inference with no required cloud API calls
 
 Conversation history is stored locally in:
@@ -116,14 +120,42 @@ SQLite
   ↓
 load saved messages
   ↓
-rebuild Python message history
+rebuild complete Python message history
   ↓
-send complete context to Qwen
+calculate available input-token budget
+  ↓
+fit recent conversation history to that budget
+  ↓
+send the fitted request context to Qwen
 ```
+
+The complete conversation remains stored in SQLite even when older messages are omitted from a particular model request.
 
 The model itself is not being retrained and does not permanently remember the conversation.
 
-Persistence comes from storing the conversation in SQLite and supplying that history to the model again on future requests.
+Persistence comes from storing the conversation in SQLite and supplying the relevant conversation history to the model again on future requests.
+
+## Context Budgeting
+
+The llama.cpp server is currently configured with a 32,768-token context window.
+
+The Python client reads the active context size from llama.cpp at runtime and reserves 4,096 tokens for model output.
+
+Before inference, the application counts the tokens required by the current conversation using llama.cpp's tokenizer.
+
+If the full conversation fits within the available input budget, it is sent unchanged.
+
+If the conversation exceeds the input budget, the context manager:
+
+- preserves the system message
+- keeps the newest complete conversation history that fits
+- begins retained history on a user message rather than an orphaned assistant response
+- removes older messages only from the current model request
+- leaves the complete conversation unchanged in SQLite
+
+A binary search is used to locate the oldest conversation position that still fits within the available input budget rather than checking every possible cutoff one at a time.
+
+Current context selection is based on recency rather than relevance. Retrieval of older relevant information is planned for later RAG work.
 
 ## First-Time Setup
 
@@ -324,13 +356,39 @@ local-ai-lab/
 │   ├── monitor_gpu.sh
 │   └── start_llama_server.sh
 ├── src/
+│   ├── context_manager.py
 │   ├── database.py
 │   └── llm_client.py
+├── tests/
+│   ├── test_context_manager.py
+│   └── test_database.py
 ├── workflows/
 │   └── SDXL_Model_Comparison.json
 ├── .gitignore
+├── pytest.ini
+├── requirements.txt
 └── README.md
 ```
+
+## Testing
+
+Automated tests currently cover database behavior and context-budgeting logic.
+
+Run the test suite from the repository root with the virtual environment active:
+
+```bash
+python -m pytest -v
+```
+
+The context-manager tests cover:
+
+- returning the complete history when it fits
+- removing the oldest conversation turns when necessary
+- preserving the original full message history
+- rejecting requests that cannot fit even after truncation
+- efficient cutoff selection with a large synthetic conversation
+
+The large-history test verifies that context selection does not require checking every possible starting position.
 
 ## What This Project Is Exploring
 
@@ -349,6 +407,9 @@ The project is being used to understand the systems surrounding local AI applica
 - relational databases
 - SQL queries and relationships
 - persistence across process restarts
+- context windows and token budgeting
+- algorithmic scaling
+- automated testing
 - debugging across multiple software layers
 
 ## Current Development Status
@@ -365,14 +426,17 @@ Working:
 - Conversation resume
 - Conversation deletion
 - Automatic conversation titles
+- Runtime context-window detection
+- Token-aware context budgeting
+- Recent-history context truncation
+- Automated database tests
+- Automated context-manager tests
 - GPU monitoring scripts
 - VS Code startup tasks
 
 Planned:
 
-- Automated tests
 - Improved conversation navigation
-- Context-window management
 - Retrieval-Augmented Generation (RAG)
 - Retrieval from private documents
 - Tool calling
