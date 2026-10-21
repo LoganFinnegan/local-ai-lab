@@ -344,6 +344,9 @@ This makes it easier to observe the difference between:
 
 ```text
 local-ai-lab/
+├── .github/
+│   └── workflows/
+│       └── tests.yml
 ├── .vscode/
 │   └── tasks.json
 ├── data/
@@ -390,6 +393,22 @@ The context-manager tests cover:
 
 The large-history test verifies that context selection does not require checking every possible starting position.
 
+## Continuous Integration
+
+GitHub Actions automatically runs the Python test suite on pushes and pull requests. The workflow can also be started manually from GitHub Actions.
+
+The CI workflow:
+
+- runs on Ubuntu 24.04
+- uses Python 3.12
+- installs dependencies from `requirements.txt`
+- checks Python syntax
+- runs the pytest suite
+- uses read-only repository permissions
+- has a five-minute job timeout
+
+The CI workflow tests the Python database and context-management code. It does not run the local llama.cpp/Qwen/ROCm inference stack because the standard GitHub-hosted runner does not provide the required local GPU environment.
+
 ## What This Project Is Exploring
 
 The goal is not simply to run an AI model.
@@ -410,6 +429,7 @@ The project is being used to understand the systems surrounding local AI applica
 - context windows and token budgeting
 - algorithmic scaling
 - automated testing
+- continuous integration
 - debugging across multiple software layers
 
 ## Current Development Status
@@ -433,6 +453,8 @@ Working:
 - Automated context-manager tests
 - GPU monitoring scripts
 - VS Code startup tasks
+- GitHub Actions CI
+- Automated test runs on pushes and pull requests
 
 Planned:
 
@@ -442,7 +464,6 @@ Planned:
 - Tool calling
 - Private/non-persistent sessions
 - Docker and reproducible environment setup
-- CI
 - Additional logging and health checks
 
 ## Privacy
