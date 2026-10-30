@@ -2,6 +2,8 @@ import json
 
 import requests
 
+import config
+
 from context_manager import fit_messages_to_budget
 
 from database import (
@@ -14,14 +16,6 @@ from database import (
     save_message,
 )
 
-
-URL = "http://127.0.0.1:8080/v1/chat/completions"
-TOKEN_COUNT_URL = (
-    "http://127.0.0.1:8080/v1/chat/completions/input_tokens"
-)
-PROPS_URL = "http://127.0.0.1:8080/props"
-
-MODEL = "/home/logan/ai/models/llm/Qwen3-14B-Q4_K_M.gguf"
 
 MAX_OUTPUT_TOKENS = 4096
 
@@ -46,7 +40,7 @@ SYSTEM_MESSAGE = {
 
 def get_context_window_tokens():
     response = requests.get(
-        PROPS_URL,
+        config.PROPS_URL,
         timeout=30,
     )
 
@@ -59,12 +53,12 @@ def get_context_window_tokens():
 
 def count_input_tokens(messages):
     payload = {
-        "model": MODEL,
+        "model": config.MODEL_PATH,
         "messages": messages,
     }
 
     response = requests.post(
-        TOKEN_COUNT_URL,
+        config.TOKEN_COUNT_URL,
         json=payload,
         timeout=30,
     )
@@ -314,7 +308,7 @@ while True:
             )
 
     payload = {
-        "model": MODEL,
+        "model": config.MODEL_PATH,
         "messages": request_messages,
         "stream": True,
         "max_tokens": MAX_OUTPUT_TOKENS,
@@ -322,7 +316,7 @@ while True:
 
     try:
         response = requests.post(
-            URL,
+            config.CHAT_COMPLETIONS_URL,
             json=payload,
             timeout=120,
             stream=True,
