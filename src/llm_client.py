@@ -39,16 +39,39 @@ SYSTEM_MESSAGE = {
 
 
 def get_context_window_tokens():
-    response = requests.get(
-        config.PROPS_URL,
-        timeout=30,
-    )
+    try:
+        response = requests.get(
+            config.PROPS_URL,
+            timeout=30,
+        )
 
-    response.raise_for_status()
+        response.raise_for_status()
 
-    data = response.json()
+        data = response.json()
 
-    return data["default_generation_settings"]["n_ctx"]
+        return data["default_generation_settings"]["n_ctx"]
+
+    except requests.exceptions.ConnectionError:
+        raise SystemExit(
+            "Could not connect to llama-server at "
+            f"{config.LLM_SERVER_URL}."
+        )
+
+    except requests.exceptions.Timeout:
+        raise SystemExit(
+            "Timed out while connecting to llama-server at "
+            f"{config.LLM_SERVER_URL}."
+        )
+
+    except requests.exceptions.HTTPError as error:
+        raise SystemExit(
+            f"llama-server returned an HTTP error during startup: {error}"
+        )
+
+    except (requests.exceptions.JSONDecodeError, KeyError):
+        raise SystemExit(
+            "llama-server returned an unexpected response from /props."
+        )
 
 
 def count_input_tokens(messages):
