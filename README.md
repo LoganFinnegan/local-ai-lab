@@ -1,13 +1,13 @@
 # Local AI Lab
 
-A hands-on local AI project focused on understanding how model inference, GPU acceleration, HTTP APIs, application state, persistence, and local infrastructure fit together.
+A hands-on local AI project focused on understanding how model inference, GPU acceleration, HTTP APIs, application state, persistence, containers, and local infrastructure fit together.
 
-The project started with local image generation and has expanded into a persistent local LLM client running entirely on consumer AMD hardware.
+The project started with local image generation and has expanded into a persistent local LLM application running on consumer AMD hardware.
 
 ## Current Hardware
 
 - AMD Radeon RX 9070 XT - 16 GB VRAM
-- AMD Ryzen 7 9800
+- AMD Ryzen 7 9800X3D
 - 32 GB RAM
 - Ubuntu Linux
 
@@ -28,7 +28,7 @@ Qwen3-14B-Q4_K_M
   ↓
 Local HTTP API
   ↓
-Python client
+Python application
   ↓
 SQLite conversation history
 ```
@@ -41,7 +41,38 @@ The server is exposed only on the local machine at:
 http://127.0.0.1:8080
 ```
 
-The Python client communicates with the OpenAI-compatible `/v1/chat/completions` endpoint.
+The Python application communicates with the OpenAI-compatible llama.cpp API.
+
+The Python application can currently be run either:
+
+- directly through the local Python virtual environment
+- inside a Docker container
+
+The llama.cpp server, model, ROCm runtime, and GPU remain on the host machine rather than inside the application container.
+
+### Containerized Application
+
+The current Docker layout separates the application layer from the inference layer:
+
+```text
+Docker container
+├── Python 3.12
+├── application code
+├── context management
+├── database code
+├── tests
+└── Python dependencies
+        │
+        │ HTTP
+        ↓
+Ubuntu host
+├── llama-server
+├── Qwen3-14B
+├── ROCm
+└── AMD GPU
+```
+
+SQLite data is bind-mounted from the host so conversation history survives container deletion and recreation.
 
 ### Image Generation
 
@@ -70,7 +101,7 @@ The repository includes a saved ComfyUI workflow for controlled model comparison
 
 ## Current LLM Features
 
-The Python client currently supports:
+The Python application currently supports:
 
 - Streaming responses from llama.cpp
 - Configurable display of Qwen reasoning output
@@ -86,6 +117,10 @@ The Python client currently supports:
 - Token-aware context budgeting
 - Automatic truncation of older conversation turns when necessary
 - Context-usage reporting during development
+- Environment-based server and model configuration
+- Clear startup errors when llama-server is unavailable
+- Dockerized application environment
+- Persistent SQLite storage across disposable Docker containers
 - Local-only inference with no required cloud API calls
 
 Conversation history is stored locally in:
@@ -139,7 +174,7 @@ Persistence comes from storing the conversation in SQLite and supplying the rele
 
 The llama.cpp server is currently configured with a 32,768-token context window.
 
-The Python client reads the active context size from llama.cpp at runtime and reserves 4,096 tokens for model output.
+The Python application reads the active context size from llama.cpp at runtime and reserves 4,096 tokens for model output.
 
 Before inference, the application counts the tokens required by the current conversation using llama.cpp's tokenizer.
 
@@ -157,9 +192,38 @@ A binary search is used to locate the oldest conversation position that still fi
 
 Current context selection is based on recency rather than relevance. Retrieval of older relevant information is planned for later RAG work.
 
-## First-Time Setup
+## Configuration
 
-This project uses a Python virtual environment for its Python dependencies.
+Runtime configuration is handled through environment variables.
+
+The main configurable values are:
+
+```text
+LLM_SERVER_URL
+MODEL_PATH
+```
+
+The Python application provides local defaults where appropriate, while Docker Compose can load machine-specific values from a local `.env` file.
+
+The repository includes:
+
+```text
+.env.example
+```
+
+as a template.
+
+The real:
+
+```text
+.env
+```
+
+file is ignored by Git so machine-specific configuration and future secrets are not committed.
+
+## First-Time Native Setup
+
+This project uses a Python virtual environment for its Python dependencies when running directly on the host.
 
 From the repository root, create the virtual environment:
 
@@ -189,14 +253,21 @@ The virtual environment itself is local to the machine and is excluded from Git.
 
 ### External Requirements
 
-The Python virtual environment does not install the local AI runtime itself.
+The Python virtual environment and Docker image do not install the local AI inference runtime itself.
 
 The current development setup also requires:
 
+- a compatible inference machine
+- a working `llama.cpp` build
+- a compatible model
+- sufficient CPU/GPU memory for the selected model
+
+The current development machine additionally uses:
+
 - AMD GPU drivers
 - ROCm
-- a working `llama.cpp` build with AMD/HIP support
-- the Qwen3-14B-Q4_K_M GGUF model
+- AMD/HIP support in llama.cpp
+- Qwen3-14B-Q4_K_M GGUF
 
 The current helper script expects:
 
@@ -251,13 +322,13 @@ This starts:
 - llama.cpp server in a dedicated VS Code terminal
 - AMD GPU monitoring in a dedicated VS Code terminal
 
-Then open another terminal and start the client:
+Then open another terminal and start the application:
 
 ```bash
 python src/llm_client.py
 ```
 
-### Manual Startup
+### Manual Native Startup
 
 Activate the Python virtual environment if it is not already active:
 
@@ -279,13 +350,143 @@ In another terminal:
 ./scripts/monitor_gpu.sh
 ```
 
-Then start the chat client:
+Then start the chat application:
 
 ```bash
 python src/llm_client.py
 ```
 
-### Optional System Monitoring
+### Docker Startup
+
+Docker is optional. The application can still be run directly through Python.
+
+The current Docker setup containerizes the Python application while leaving llama.cpp and GPU inference on the host machine.
+
+First create a local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` for the local machine.
+
+Example:
+
+```text
+LLM_SERVER_URL=http://127.0.0.1:8080
+MODEL_PATH=/path/to/your/model.gguf
+```
+
+Start the llama.cpp server separately on the host.
+
+On the current development machine:
+
+```bash
+./scripts/start_llama_server.sh
+```
+
+Confirm the server is responding:
+
+```bash
+curl -sS http://127.0.0.1:8080/props
+```
+
+Build the application image:
+
+```bash
+docker compose build
+```
+
+Run the application:
+
+```bash
+docker compose run --rm app
+```
+
+The `--rm` option removes the disposable application container after it exits.
+
+Conversation history remains available because:
+
+```text
+./data
+```
+
+on the host is mounted inside the container at:
+
+```text
+/app/data
+```
+
+The container can therefore be destroyed and recreated without deleting the SQLite conversation database.
+
+### Current Docker Networking
+
+The current Compose configuration uses:
+
+```text
+network_mode: host
+```
+
+on Linux.
+
+This allows the containerized application to reach the host llama.cpp server through:
+
+```text
+http://127.0.0.1:8080
+```
+
+without exposing llama-server to the wider network.
+
+This networking configuration has been tested on the current Ubuntu development machine.
+
+The application image itself is not intended to depend on AMD hardware, but the current Compose networking and helper scripts are Linux-focused. Running the project with a different host environment, such as macOS, may require different inference-server and container-network configuration.
+
+## Docker Files
+
+The repository includes:
+
+```text
+Dockerfile
+.dockerignore
+compose.yaml
+.env.example
+```
+
+Their roles are:
+
+```text
+Dockerfile
+→ describes how the application image is built
+
+.dockerignore
+→ excludes unnecessary local files from the Docker build context
+
+compose.yaml
+→ describes how the application container is configured and run
+
+.env.example
+→ documents machine-specific environment variables
+```
+
+The Docker image currently contains:
+
+- Python 3.12
+- Python dependencies
+- application source code
+- pytest configuration
+- automated tests
+
+It does not contain:
+
+- Qwen model files
+- llama.cpp
+- ROCm
+- AMD drivers
+- the host virtual environment
+- Git history
+- local conversation data
+
+## Optional System Monitoring
 
 For general CPU, RAM, process, network, and disk monitoring:
 
@@ -359,6 +560,7 @@ local-ai-lab/
 │   ├── monitor_gpu.sh
 │   └── start_llama_server.sh
 ├── src/
+│   ├── config.py
 │   ├── context_manager.py
 │   ├── database.py
 │   └── llm_client.py
@@ -367,7 +569,11 @@ local-ai-lab/
 │   └── test_database.py
 ├── workflows/
 │   └── SDXL_Model_Comparison.json
+├── .dockerignore
+├── .env.example
 ├── .gitignore
+├── compose.yaml
+├── Dockerfile
 ├── pytest.ini
 ├── requirements.txt
 └── README.md
@@ -377,11 +583,23 @@ local-ai-lab/
 
 Automated tests currently cover database behavior and context-budgeting logic.
 
+### Native Testing
+
 Run the test suite from the repository root with the virtual environment active:
 
 ```bash
 python -m pytest -v
 ```
+
+### Docker Testing
+
+The same test suite can be run inside the application container:
+
+```bash
+docker compose run --rm app python -m pytest -v
+```
+
+This verifies that the Python application and tests also work inside the reproducible container environment rather than only inside the host development environment.
 
 The context-manager tests cover:
 
@@ -391,7 +609,15 @@ The context-manager tests cover:
 - rejecting requests that cannot fit even after truncation
 - efficient cutoff selection with a large synthetic conversation
 
-The large-history test verifies that context selection does not require checking every possible starting position.
+The database tests cover:
+
+- creating conversations
+- saving and loading messages
+- checking whether conversations exist
+- deleting conversations and associated messages
+- handling deletion of missing conversations
+- pagination through conversation history
+- ordering conversations by most recent activity
 
 ## Continuous Integration
 
@@ -407,7 +633,9 @@ The CI workflow:
 - uses read-only repository permissions
 - has a five-minute job timeout
 
-The CI workflow tests the Python database and context-management code. It does not run the local llama.cpp/Qwen/ROCm inference stack because the standard GitHub-hosted runner does not provide the required local GPU environment.
+The CI workflow tests the Python database and context-management code.
+
+It does not run the local llama.cpp/Qwen/ROCm inference stack because the standard GitHub-hosted runner does not provide the required local GPU environment.
 
 ## What This Project Is Exploring
 
@@ -416,20 +644,27 @@ The goal is not simply to run an AI model.
 The project is being used to understand the systems surrounding local AI applications, including:
 
 - Linux processes and filesystem behavior
+- users, groups, and permissions
 - AMD GPU compute and ROCm
 - model loading and VRAM usage
 - quantized GGUF models
 - HTTP request/response flow
 - streaming APIs
+- client/server boundaries
 - Python data structures
 - application state
 - relational databases
 - SQL queries and relationships
-- persistence across process restarts
+- transactions and persistence
 - context windows and token budgeting
 - algorithmic scaling
 - automated testing
 - continuous integration
+- environment-based configuration
+- Docker images and containers
+- bind-mounted persistent storage
+- container networking
+- reproducible application environments
 - debugging across multiple software layers
 
 ## Current Development Status
@@ -439,7 +674,7 @@ Working:
 - Local Qwen inference
 - AMD GPU acceleration
 - llama.cpp HTTP server
-- Streaming Python client
+- Streaming Python application
 - Multi-turn context
 - SQLite persistence
 - Multiple conversations
@@ -449,22 +684,31 @@ Working:
 - Runtime context-window detection
 - Token-aware context budgeting
 - Recent-history context truncation
+- Environment-based configuration
+- Startup error handling
 - Automated database tests
 - Automated context-manager tests
 - GPU monitoring scripts
 - VS Code startup tasks
 - GitHub Actions CI
 - Automated test runs on pushes and pull requests
+- Dockerized Python application
+- Docker Compose runtime configuration
+- Persistent SQLite storage across disposable containers
+- Test execution inside Docker
 
 Planned:
 
-- Improved conversation navigation
 - Retrieval-Augmented Generation (RAG)
 - Retrieval from private documents
+- Source-aware retrieval and provenance
 - Tool calling
+- Optional web/search tools
+- Improved long-term memory and context handling
 - Private/non-persistent sessions
-- Docker and reproducible environment setup
-- Additional logging and health checks
+- Additional logging and observability
+- More portable Docker networking for non-Linux hosts
+- Additional application interfaces beyond the terminal client
 
 ## Privacy
 
@@ -479,3 +723,7 @@ The llama.cpp server binds to:
 rather than exposing the service to the local network.
 
 Conversation history is stored locally in SQLite and the database file is excluded from Git.
+
+The Docker configuration bind-mounts local application data rather than embedding conversation history into the application image.
+
+No cloud model API is required for the current local inference workflow.
