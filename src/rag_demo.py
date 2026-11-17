@@ -1,0 +1,100 @@
+import requests
+
+import config
+
+from rag import build_rag_messages
+
+from retrieval import (
+    chunk_text,
+    embed_chunks,
+    load_embedding_model,
+    load_text,
+    search_chunks,
+)
+
+
+DOCUMENT_PATH = "knowledge/sample.txt"
+RETRIEVAL_LIMIT = 3
+
+
+text = load_text(DOCUMENT_PATH)
+chunks = chunk_text(text)
+
+print(f"Loaded {len(chunks)} chunks.")
+
+print("Loading embedding model...")
+embedding_model = load_embedding_model()
+
+print("Embedding document chunks...")
+chunk_embeddings = embed_chunks(
+    embedding_model,
+    chunks,
+)
+
+print("Ready.")
+
+
+while True:
+    query = input(
+        "\nAsk about the document: "
+    ).strip()
+
+    if query.lower() in {"exit", "quit"}:
+        break
+
+    results = search_chunks(
+        query,
+        chunks,
+        chunk_embeddings,
+        embedding_model,
+        limit=RETRIEVAL_LIMIT,
+    )
+
+    print("\nRetrieved chunks:")
+
+    retrieved_chunks = []
+
+    for score, chunk in results:
+        print(f"\nSimilarity: {score:.3f}")
+        print(chunk)
+
+        retrieved_chunks.append(chunk)
+
+    messages = build_rag_messages(
+        query,
+        retrieved_chunks,
+    )
+
+    payload = {
+        "model": config.MODEL_PATH,
+        "messages": messages,
+        "stream": False,
+    }
+
+    try:
+        response = requests.post(
+            config.CHAT_COMPLETIONS_URL,
+            json=payload,
+            timeout=120,
+        )
+
+        response.raise_for_status()
+
+    except requests.exceptions.ConnectionError:
+        print("\nCould not connect to llama-server.")
+        continue
+
+    except requests.exceptions.Timeout:
+        print("\nThe request timed out.")
+        continue
+
+    except requests.exceptions.HTTPError as error:
+        print(f"\nHTTP error: {error}")
+        continue
+
+    data = response.json()
+
+    answer = data["choices"][0]["message"]["content"]
+
+    print("\nRAG answer:")
+    print(answer)
