@@ -1,19 +1,27 @@
 from retrieval import (
-    chunk_text,
+    chunk_documents,
     embed_chunks,
+    load_documents,
     load_embedding_model,
-    load_text,
     search_chunks,
 )
 
 
-DOCUMENT_PATH = "knowledge/sample.txt"
+KNOWLEDGE_DIRECTORY = "knowledge"
 
 
-text = load_text(DOCUMENT_PATH)
-chunks = chunk_text(text)
+documents = load_documents(
+    KNOWLEDGE_DIRECTORY
+)
 
-print(f"Loaded {len(chunks)} chunks.")
+chunks = chunk_documents(
+    documents
+)
+
+print(
+    f"Loaded {len(documents)} documents "
+    f"and {len(chunks)} chunks."
+)
 
 print("Loading embedding model...")
 embedding_model = load_embedding_model()
@@ -26,9 +34,10 @@ chunk_embeddings = embed_chunks(
 
 print("Ready.")
 
+
 while True:
     query = input(
-        "\nAsk about the document: "
+        "\nAsk about the documents: "
     ).strip()
 
     if query.lower() in {"exit", "quit"}:
@@ -44,5 +53,10 @@ while True:
     print("\nRetrieved chunks:")
 
     for score, chunk in results:
-        print(f"\nSimilarity: {score:.3f}")
-        print(chunk)
+        print(
+            f"\nSimilarity: {score:.3f}"
+        )
+        print(
+            f"Source: {chunk['source']}"
+        )
+        print(chunk["text"])

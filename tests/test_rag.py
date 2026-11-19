@@ -2,11 +2,25 @@ from rag import build_rag_messages
 
 
 def test_build_rag_messages_includes_query_and_retrieved_chunks():
-    query = "Who can see things before they happen?"
+    query = (
+        "Who can see things before they happen?"
+    )
 
     retrieved_chunks = [
-        "Paul Atreides can perceive possible future events after exposure to spice.",
-        "Guild Navigators use spice to safely guide interstellar travel.",
+        {
+            "source": "dune.txt",
+            "text": (
+                "Paul Atreides can perceive possible "
+                "future events after exposure to spice."
+            ),
+        },
+        {
+            "source": "dune.txt",
+            "text": (
+                "Guild Navigators use spice to safely "
+                "guide interstellar travel."
+            ),
+        },
     ]
 
     messages = build_rag_messages(
@@ -23,4 +37,12 @@ def test_build_rag_messages_includes_query_and_retrieved_chunks():
     assert query in messages[1]["content"]
 
     for chunk in retrieved_chunks:
-        assert chunk in messages[1]["content"]
+        assert (
+            chunk["source"]
+            in messages[1]["content"]
+        )
+
+        assert (
+            chunk["text"]
+            in messages[1]["content"]
+        )

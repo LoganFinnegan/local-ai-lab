@@ -1,5 +1,20 @@
-def build_rag_messages(query, retrieved_chunks):
-    context = "\n\n".join(retrieved_chunks)
+def build_rag_messages(
+    query,
+    retrieved_chunks,
+):
+    reference_sections = []
+
+    for chunk in retrieved_chunks:
+        reference_sections.append(
+            (
+                f"Source: {chunk['source']}\n"
+                f"{chunk['text']}"
+            )
+        )
+
+    context = "\n\n".join(
+        reference_sections
+    )
 
     return [
         {

@@ -7,22 +7,42 @@ from fastembed import TextEmbedding
 EMBEDDING_MODEL_NAME = "BAAI/bge-small-en-v1.5"
 
 
-def load_text(file_path):
-    path = Path(file_path)
+def load_documents(directory_path):
+    directory = Path(directory_path)
 
-    return path.read_text(encoding="utf-8")
+    documents = []
+
+    for file_path in sorted(directory.glob("*.txt")):
+        documents.append(
+            {
+                "source": file_path.name,
+                "text": file_path.read_text(
+                    encoding="utf-8",
+                ),
+            }
+        )
+
+    return documents
 
 
-def chunk_text(text):
-    paragraphs = text.split("\n\n")
-
+def chunk_documents(documents):
     chunks = []
 
-    for paragraph in paragraphs:
-        cleaned_paragraph = paragraph.strip()
+    for document in documents:
+        paragraphs = document["text"].split(
+            "\n\n"
+        )
 
-        if cleaned_paragraph:
-            chunks.append(cleaned_paragraph)
+        for paragraph in paragraphs:
+            cleaned_paragraph = paragraph.strip()
+
+            if cleaned_paragraph:
+                chunks.append(
+                    {
+                        "source": document["source"],
+                        "text": cleaned_paragraph,
+                    }
+                )
 
     return chunks
 
@@ -34,8 +54,15 @@ def load_embedding_model():
 
 
 def embed_chunks(embedding_model, chunks):
+    chunk_texts = [
+        chunk["text"]
+        for chunk in chunks
+    ]
+
     return list(
-        embedding_model.passage_embed(chunks)
+        embedding_model.passage_embed(
+            chunk_texts
+        )
     )
 
 
@@ -45,7 +72,10 @@ def embed_query(embedding_model, query):
     )[0]
 
 
-def cosine_similarity(first_vector, second_vector):
+def cosine_similarity(
+    first_vector,
+    second_vector,
+):
     numerator = np.dot(
         first_vector,
         second_vector,
@@ -59,7 +89,9 @@ def cosine_similarity(first_vector, second_vector):
     if denominator == 0:
         return 0.0
 
-    return float(numerator / denominator)
+    return float(
+        numerator / denominator
+    )
 
 
 def search_chunks(
