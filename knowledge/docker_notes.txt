@@ -1,0 +1,11 @@
+A Docker image is a packaged environment containing the files and dependencies needed to run an application.
+
+A Docker container is a running instance of an image. Multiple containers can be created from the same image.
+
+A bind mount maps a host directory or file into a container. Data stored in the mounted host directory remains available after the container is deleted.
+
+Docker Compose describes how containers should be configured and run. It can define environment variables, mounts, networking, and other runtime settings.
+
+On Linux, host networking allows a container to share the host network namespace. A container using host networking can reach services listening on the host through the same localhost interface.
+
+The Local AI Lab uses a bind mount for its SQLite data directory so conversation history survives disposable application containers.

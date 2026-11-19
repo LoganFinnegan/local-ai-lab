@@ -5,22 +5,30 @@ import config
 from rag import build_rag_messages
 
 from retrieval import (
-    chunk_text,
+    chunk_documents,
     embed_chunks,
+    load_documents,
     load_embedding_model,
-    load_text,
     search_chunks,
 )
 
 
-DOCUMENT_PATH = "knowledge/sample.txt"
+KNOWLEDGE_DIRECTORY = "knowledge"
 RETRIEVAL_LIMIT = 3
 
 
-text = load_text(DOCUMENT_PATH)
-chunks = chunk_text(text)
+documents = load_documents(
+    KNOWLEDGE_DIRECTORY
+)
 
-print(f"Loaded {len(chunks)} chunks.")
+chunks = chunk_documents(
+    documents
+)
+
+print(
+    f"Loaded {len(documents)} documents "
+    f"and {len(chunks)} chunks."
+)
 
 print("Loading embedding model...")
 embedding_model = load_embedding_model()
@@ -36,7 +44,7 @@ print("Ready.")
 
 while True:
     query = input(
-        "\nAsk about the document: "
+        "\nAsk about the documents: "
     ).strip()
 
     if query.lower() in {"exit", "quit"}:
@@ -55,10 +63,17 @@ while True:
     retrieved_chunks = []
 
     for score, chunk in results:
-        print(f"\nSimilarity: {score:.3f}")
-        print(chunk)
+        print(
+            f"\nSimilarity: {score:.3f}"
+        )
+        print(
+            f"Source: {chunk['source']}"
+        )
+        print(chunk["text"])
 
-        retrieved_chunks.append(chunk)
+        retrieved_chunks.append(
+            chunk
+        )
 
     messages = build_rag_messages(
         query,
@@ -81,20 +96,32 @@ while True:
         response.raise_for_status()
 
     except requests.exceptions.ConnectionError:
-        print("\nCould not connect to llama-server.")
+        print(
+            "\nCould not connect to llama-server."
+        )
         continue
 
     except requests.exceptions.Timeout:
-        print("\nThe request timed out.")
+        print(
+            "\nThe request timed out."
+        )
         continue
 
     except requests.exceptions.HTTPError as error:
-        print(f"\nHTTP error: {error}")
+        print(
+            f"\nHTTP error: {error}"
+        )
         continue
 
     data = response.json()
 
-    answer = data["choices"][0]["message"]["content"]
+    answer = data[
+        "choices"
+    ][0][
+        "message"
+    ][
+        "content"
+    ]
 
     print("\nRAG answer:")
     print(answer)

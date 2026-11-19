@@ -1,0 +1,11 @@
+An embedding model converts text into numerical vectors that represent semantic meaning.
+
+Semantic retrieval compares the embedding of a user query with embeddings created from document chunks. Similar vectors represent text with related meaning even when the exact words differ.
+
+Cosine similarity measures the relationship between two vectors. Higher similarity generally means that the represented text is more semantically related.
+
+Retrieval-augmented generation retrieves relevant source material before sending a question to a language model.
+
+The Local AI Lab uses FastEmbed with the BAAI bge-small-en-v1.5 embedding model. The embedding model currently runs on the CPU.
+
+Qwen runs through llama-server and performs language generation on the GPU. The Python application communicates with llama-server using HTTP.
