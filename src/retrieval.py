@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import numpy as np
 from fastembed import TextEmbedding
 
 
@@ -12,7 +11,9 @@ def load_documents(directory_path):
 
     documents = []
 
-    for file_path in sorted(directory.glob("*.txt")):
+    for file_path in sorted(
+        directory.glob("*.txt")
+    ):
         documents.append(
             {
                 "source": file_path.name,
@@ -34,7 +35,9 @@ def chunk_documents(documents):
         )
 
         for paragraph in paragraphs:
-            cleaned_paragraph = paragraph.strip()
+            cleaned_paragraph = (
+                paragraph.strip()
+            )
 
             if cleaned_paragraph:
                 chunks.append(
@@ -53,7 +56,10 @@ def load_embedding_model():
     )
 
 
-def embed_chunks(embedding_model, chunks):
+def embed_chunks(
+    embedding_model,
+    chunks,
+):
     chunk_texts = [
         chunk["text"]
         for chunk in chunks
@@ -66,64 +72,12 @@ def embed_chunks(embedding_model, chunks):
     )
 
 
-def embed_query(embedding_model, query):
-    return list(
-        embedding_model.query_embed(query)
-    )[0]
-
-
-def cosine_similarity(
-    first_vector,
-    second_vector,
-):
-    numerator = np.dot(
-        first_vector,
-        second_vector,
-    )
-
-    denominator = (
-        np.linalg.norm(first_vector)
-        * np.linalg.norm(second_vector)
-    )
-
-    if denominator == 0:
-        return 0.0
-
-    return float(
-        numerator / denominator
-    )
-
-
-def search_chunks(
-    query,
-    chunks,
-    chunk_embeddings,
+def embed_query(
     embedding_model,
-    limit=3,
+    query,
 ):
-    query_embedding = embed_query(
-        embedding_model,
-        query,
-    )
-
-    scored_chunks = []
-
-    for chunk, chunk_embedding in zip(
-        chunks,
-        chunk_embeddings,
-    ):
-        score = cosine_similarity(
-            query_embedding,
-            chunk_embedding,
+    return list(
+        embedding_model.query_embed(
+            query
         )
-
-        scored_chunks.append(
-            (score, chunk)
-        )
-
-    scored_chunks.sort(
-        key=lambda result: result[0],
-        reverse=True,
-    )
-
-    return scored_chunks[:limit]
+    )[0]
