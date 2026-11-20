@@ -1,9 +1,15 @@
 from retrieval import (
     chunk_documents,
     embed_chunks,
+    embed_query,
     load_documents,
     load_embedding_model,
-    search_chunks,
+)
+
+from vector_store import (
+    get_collection,
+    index_chunks,
+    search_collection,
 )
 
 
@@ -26,11 +32,40 @@ print(
 print("Loading embedding model...")
 embedding_model = load_embedding_model()
 
-print("Embedding document chunks...")
-chunk_embeddings = embed_chunks(
-    embedding_model,
-    chunks,
-)
+collection = get_collection()
+
+
+if collection.count() == 0:
+    print(
+        "No saved vector index found."
+    )
+
+    print(
+        "Embedding document chunks..."
+    )
+
+    chunk_embeddings = embed_chunks(
+        embedding_model,
+        chunks,
+    )
+
+    index_chunks(
+        collection,
+        chunks,
+        chunk_embeddings,
+    )
+
+    print(
+        f"Stored {len(chunks)} chunks "
+        "in Chroma."
+    )
+
+else:
+    print(
+        "Loaded existing Chroma collection "
+        f"with {collection.count()} chunks."
+    )
+
 
 print("Ready.")
 
@@ -40,14 +75,20 @@ while True:
         "\nAsk about the documents: "
     ).strip()
 
-    if query.lower() in {"exit", "quit"}:
+    if query.lower() in {
+        "exit",
+        "quit",
+    }:
         break
 
-    results = search_chunks(
-        query,
-        chunks,
-        chunk_embeddings,
+    query_embedding = embed_query(
         embedding_model,
+        query,
+    )
+
+    results = search_collection(
+        collection,
+        query_embedding,
     )
 
     print("\nRetrieved chunks:")
@@ -56,7 +97,11 @@ while True:
         print(
             f"\nSimilarity: {score:.3f}"
         )
+
         print(
             f"Source: {chunk['source']}"
         )
-        print(chunk["text"])
+
+        print(
+            chunk["text"]
+        )
