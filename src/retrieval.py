@@ -6,6 +6,9 @@ from fastembed import TextEmbedding
 
 EMBEDDING_MODEL_NAME = "BAAI/bge-small-en-v1.5"
 
+CHUNK_SIZE_WORDS = 250
+CHUNK_OVERLAP_WORDS = 50
+
 
 def load_documents(directory_path):
     directory = Path(directory_path)
@@ -35,33 +38,60 @@ def load_documents(directory_path):
 def chunk_documents(documents):
     chunks = []
 
+    step_size = (
+        CHUNK_SIZE_WORDS
+        - CHUNK_OVERLAP_WORDS
+    )
+
     for document in documents:
-        paragraphs = document["text"].split(
-            "\n\n"
+        normalized_text = (
+            document["text"]
+            .replace("\r\n", "\n")
+            .replace("\r", "\n")
         )
+
+        words = normalized_text.split()
 
         chunk_index = 0
 
-        for paragraph in paragraphs:
-            cleaned_paragraph = (
-                paragraph.strip()
+        for start in range(
+            0,
+            len(words),
+            step_size,
+        ):
+            end = (
+                start
+                + CHUNK_SIZE_WORDS
             )
 
-            if cleaned_paragraph:
-                chunks.append(
-                    {
-                        "source": document[
-                            "source"
-                        ],
-                        "file_hash": document[
-                            "file_hash"
-                        ],
-                        "chunk_index": chunk_index,
-                        "text": cleaned_paragraph,
-                    }
-                )
+            chunk_words = words[
+                start:end
+            ]
 
-                chunk_index += 1
+            if not chunk_words:
+                continue
+
+            chunk_text = " ".join(
+                chunk_words
+            )
+
+            chunks.append(
+                {
+                    "source": document[
+                        "source"
+                    ],
+                    "file_hash": document[
+                        "file_hash"
+                    ],
+                    "chunk_index": chunk_index,
+                    "text": chunk_text,
+                }
+            )
+
+            chunk_index += 1
+
+            if end >= len(words):
+                break
 
     return chunks
 
@@ -71,6 +101,7 @@ def load_embedding_model():
         model_name=EMBEDDING_MODEL_NAME,
         cache_dir="data/fastembed_cache",
     )
+
 
 def embed_chunks(
     embedding_model,

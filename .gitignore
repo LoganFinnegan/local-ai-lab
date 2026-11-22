@@ -26,4 +26,6 @@ Thumbs.db
 # Local application data
 data/*.db
 data/chroma/
+data/chroma_before_rechunk_*/
 data/fastembed_cache/
+data/rag_evaluations/

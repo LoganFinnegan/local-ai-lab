@@ -188,7 +188,7 @@ def test_sync_collection_replaces_changed_document(
         embedding_model,
     )
 
-    assert collection.count() == 2
+    assert collection.count() == 1
 
     changed_documents = [
         {
