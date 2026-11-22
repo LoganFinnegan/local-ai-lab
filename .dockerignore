@@ -1,10 +1,29 @@
+# Git and development tools
 .git
 .github
+.vscode
+
+# Python environments and caches
 .venv
+venv
 __pycache__
 .pytest_cache
 *.pyc
+
+# Environment configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Large AI model files
+*.gguf
+*.safetensors
+*.ckpt
+*.bin
+
+# Generated application data
 data
+
+# Files unnecessary for the application image
 docs
 scripts
-.vscode

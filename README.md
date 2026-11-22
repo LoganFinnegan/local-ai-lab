@@ -1,275 +1,412 @@
+
 # Local AI Lab
 
-A hands-on local AI project focused on understanding how model inference, GPU acceleration, HTTP APIs, application state, persistence, containers, and local infrastructure fit together.
+A local-first AI engineering project exploring how model inference, GPU acceleration, HTTP APIs, application state, databases, containers, and Retrieval-Augmented Generation (RAG) fit together.
 
-The project started with local image generation and has expanded into a persistent local LLM application running on consumer AMD hardware.
+The project runs a quantized Qwen language model locally on consumer AMD hardware. A Python application communicates with llama.cpp over HTTP, manages persistent conversation history in SQLite, and provides a separate RAG pipeline for asking questions about local documents.
 
-## Current Hardware
+The goal is to understand and build the infrastructure surrounding AI applications—not simply download a model and run inference.
 
-- AMD Radeon RX 9070 XT - 16 GB VRAM
-- AMD Ryzen 7 9800X3D
-- 32 GB RAM
-- Ubuntu Linux
+## Current Capabilities
 
-## Current Stack
+### Local LLM Application
 
-### Local LLM
-
-```text
-Ubuntu
-  ↓
-AMDGPU
-  ↓
-ROCm
-  ↓
-llama.cpp
-  ↓
-Qwen3-14B-Q4_K_M
-  ↓
-Local HTTP API
-  ↓
-Python application
-  ↓
-SQLite conversation history
-```
-
-The current LLM runs locally through `llama.cpp` using ROCm acceleration on the RX 9070 XT.
-
-The server is exposed only on the local machine at:
-
-```text
-http://127.0.0.1:8080
-```
-
-The Python application communicates with the OpenAI-compatible llama.cpp API.
-
-The Python application can currently be run either:
-
-- directly through the local Python virtual environment
-- inside a Docker container
-
-The llama.cpp server, model, ROCm runtime, and GPU remain on the host machine rather than inside the application container.
-
-### Containerized Application
-
-The current Docker layout separates the application layer from the inference layer:
-
-```text
-Docker container
-├── Python 3.12
-├── application code
-├── context management
-├── database code
-├── tests
-└── Python dependencies
-        │
-        │ HTTP
-        ↓
-Ubuntu host
-├── llama-server
-├── Qwen3-14B
-├── ROCm
-└── AMD GPU
-```
-
-SQLite data is bind-mounted from the host so conversation history survives container deletion and recreation.
-
-### Image Generation
-
-Earlier experiments used:
-
-```text
-Ubuntu
-  ↓
-AMDGPU
-  ↓
-ROCm
-  ↓
-PyTorch
-  ↓
-ComfyUI
-  ↓
-SDXL models
-```
-
-Models tested include:
-
-- SDXL Lightning
-- Juggernaut XL v9
-
-The repository includes a saved ComfyUI workflow for controlled model comparisons using the same prompt, resolution, and seed.
-
-## Current LLM Features
-
-The Python application currently supports:
-
-- Streaming responses from llama.cpp
-- Configurable display of Qwen reasoning output
-- Multi-turn conversation context
-- SQLite-backed persistent conversation history
-- Resuming conversations after the Python process exits
+- Qwen3-14B inference through llama.cpp
+- AMD GPU acceleration using ROCm
+- OpenAI-compatible local HTTP API
+- Streaming responses
+- Multi-turn conversations
+- Persistent SQLite conversation history
 - Multiple saved conversations
-- Automatic conversation titles based on the first user message
-- Listing recent conversations
-- Loading older conversations
-- Deleting conversations with confirmation
-- Runtime context-window detection from llama.cpp
+- Conversation resume and deletion
+- Automatic conversation titles
+- Runtime context-window detection
 - Token-aware context budgeting
-- Automatic truncation of older conversation turns when necessary
-- Context-usage reporting during development
-- Environment-based server and model configuration
-- Clear startup errors when llama-server is unavailable
-- Dockerized application environment
-- Persistent SQLite storage across disposable Docker containers
-- Local-only inference with no required cloud API calls
+- Automatic truncation of older conversation turns
+- Configurable reasoning-output visibility
+- Environment-based configuration
+- Startup and connection error handling
+- Dockerized Python application
+- Persistent application data through bind mounts
 
-Conversation history is stored locally in:
+### Retrieval-Augmented Generation
+
+- Local text-document ingestion
+- FastEmbed sentence embeddings
+- Persistent Chroma vector storage
+- SHA-256 document change detection
+- Incremental indexing
+- Detection of added, modified, and deleted documents
+- Fixed-size overlapping text chunks
+- Semantic similarity search
+- Source and chunk metadata
+- Retrieval inspection tools
+- Qwen-generated answers grounded in retrieved passages
+- Repeatable retrieval evaluation
+- Automated, heuristic answer checks
+- Timestamped evaluation reports
+
+### Testing and Infrastructure
+
+- Python unit tests with pytest
+- GitHub Actions continuous integration
+- Docker-based test execution
+- GPU monitoring scripts
+- VS Code startup tasks
+- Local model and embedding-cache persistence
+
+The latest local test run completed with **26 passing unit tests**.
+
+## Hardware
+
+The primary development machine uses:
+
+| Component | Hardware |
+|---|---|
+| GPU | AMD Radeon RX 9070 XT, 16 GB VRAM |
+| CPU | AMD Ryzen 7 9800X3D |
+| System memory | 32 GB DDR5 |
+| Operating system | Ubuntu Linux |
+| Python | 3.12 |
+| Local LLM | Qwen3-14B-Q4_K_M |
+
+The current inference configuration is optimized for this machine. Other hardware may require different model sizes, GPU settings, or runtime configuration.
+
+## Technology Stack
+
+### Language Model
+
+- **llama.cpp:** Local model inference server
+- **Qwen3-14B-Q4_K_M:** Quantized language model
+- **ROCm:** AMD GPU compute platform
+- **HTTP:** Communication between the Python application and inference server
+- **Python:** Application and integration logic
+
+### Retrieval
+
+- **FastEmbed:** Text embedding generation
+- **BAAI/bge-small-en-v1.5:** Embedding model
+- **Chroma:** Persistent vector database
+- **SHA-256:** Document fingerprinting for incremental indexing
+
+### Application Infrastructure
+
+- **SQLite:** Persistent conversation history
+- **Docker:** Containerized Python application
+- **Docker Compose:** Container configuration and startup
+- **pytest:** Automated testing
+- **GitHub Actions:** Continuous integration
+
+## Architecture
+
+The application separates local model inference from Python application logic.
+
+### LLM Application
+
+```text
+Python application
+       |
+       | HTTP
+       v
+llama.cpp server
+       |
+       v
+Qwen3-14B
+       |
+       v
+ROCm / AMD GPU
+```
+
+Conversation persistence operates independently:
+
+```text
+Python application
+       |
+       v
+SQLite database
+       |
+       v
+Saved conversations and messages
+```
+
+The llama.cpp server is a separate process. Stopping the Python application does not stop the inference server.
+
+### RAG Pipeline
+
+```text
+Local text documents
+       |
+       v
+Document loading and SHA-256 hashing
+       |
+       v
+250-word chunks with 50-word overlap
+       |
+       v
+FastEmbed embeddings
+       |
+       v
+Persistent Chroma collection
+       |
+       v
+Semantic similarity search
+       |
+       v
+Retrieved document passages
+       |
+       v
+Prompt construction
+       |
+       v
+llama.cpp / Qwen
+       |
+       v
+Generated answer
+```
+
+The embedding and inference models serve different purposes.
+
+FastEmbed converts text into numerical vectors representing semantic relationships.
+
+Chroma stores those vectors and searches for similar passages.
+
+Qwen receives the retrieved text as reference material and generates a natural-language answer.
+
+The RAG demonstrations currently run separately from the persistent conversational chat client.
+
+## Conversation Persistence
+
+The application uses SQLite to store conversations and messages.
+
+```text
+conversations
+    |
+    |-- conversation 1
+    |      |-- user message
+    |      |-- assistant message
+    |      `-- ...
+    |
+    `-- conversation 2
+           |-- user message
+           `-- assistant message
+```
+
+The database is stored locally:
 
 ```text
 data/chat_history.db
 ```
 
-The database file is ignored by Git and is not committed to the repository.
+The file is excluded from Git.
 
-## Conversation Persistence
+When a conversation is resumed, the application:
 
-The application stores conversations and messages separately.
+1. Loads the saved messages from SQLite.
+2. Reconstructs the conversation history in Python.
+3. Determines the available model context budget.
+4. Selects the newest complete conversation history that fits.
+5. Sends that context to llama.cpp.
 
-```text
-conversations
-    │
-    ├── conversation 1
-    │       ├── user message
-    │       ├── assistant message
-    │       └── ...
-    │
-    └── conversation 2
-            ├── user message
-            └── assistant message
-```
+The entire history remains in SQLite even when older messages are excluded from an individual model request.
 
-When an existing conversation is resumed:
+Qwen does not permanently remember conversations between requests. Conversation continuity is provided by the application.
 
-```text
-SQLite
-  ↓
-load saved messages
-  ↓
-rebuild complete Python message history
-  ↓
-calculate available input-token budget
-  ↓
-fit recent conversation history to that budget
-  ↓
-send the fitted request context to Qwen
-```
+## Context Management
 
-The complete conversation remains stored in SQLite even when older messages are omitted from a particular model request.
+The current llama.cpp configuration uses a 32,768-token context window.
 
-The model itself is not being retrained and does not permanently remember the conversation.
+The Python application reads the active context size from llama.cpp and reserves 4,096 tokens for model output.
 
-Persistence comes from storing the conversation in SQLite and supplying the relevant conversation history to the model again on future requests.
+Before inference, the application counts the input tokens using llama.cpp's tokenizer.
 
-## Context Budgeting
+If the entire conversation fits, it is included.
 
-The llama.cpp server is currently configured with a 32,768-token context window.
+If it exceeds the available input budget, the context manager:
 
-The Python application reads the active context size from llama.cpp at runtime and reserves 4,096 tokens for model output.
+- Preserves the system message
+- Keeps the newest complete conversation history that fits
+- Avoids starting retained history with an orphaned assistant response
+- Excludes older messages only from the current request
+- Leaves the original SQLite history unchanged
 
-Before inference, the application counts the tokens required by the current conversation using llama.cpp's tokenizer.
+A binary search identifies the oldest conversation position that fits the available budget.
 
-If the full conversation fits within the available input budget, it is sent unchanged.
+This avoids testing every possible cutoff sequentially.
 
-If the conversation exceeds the input budget, the context manager:
+Context selection is currently based on recency rather than relevance.
 
-- preserves the system message
-- keeps the newest complete conversation history that fits
-- begins retained history on a user message rather than an orphaned assistant response
-- removes older messages only from the current model request
-- leaves the complete conversation unchanged in SQLite
+The RAG system demonstrates a separate mechanism for retrieving relevant information from stored documents.
 
-A binary search is used to locate the oldest conversation position that still fits within the available input budget rather than checking every possible cutoff one at a time.
+## Retrieval-Augmented Generation
 
-Current context selection is based on recency rather than relevance. Retrieval of older relevant information is planned for later RAG work.
+RAG allows the application to answer questions using external reference material without retraining the language model.
 
-## Configuration
+### Document Loading
 
-Runtime configuration is handled through environment variables.
-
-The main configurable values are:
+Knowledge files are stored in:
 
 ```text
-LLM_SERVER_URL
-MODEL_PATH
+knowledge/
 ```
 
-The Python application provides local defaults where appropriate, while Docker Compose can load machine-specific values from a local `.env` file.
+The current loader processes UTF-8 `.txt` files.
 
-The repository includes:
+Example documents include:
 
 ```text
-.env.example
+knowledge/
+├── ai_notes.txt
+├── docker_notes.txt
+├── dune.txt
+└── frankenstein.txt
 ```
 
-as a template.
+These documents provide a small technical knowledge base alongside larger literary test documents.
 
-The real:
+### Text Chunking
+
+Rather than embedding entire documents, the ingestion pipeline divides them into smaller chunks.
+
+The current configuration uses:
 
 ```text
-.env
+Chunk size: 250 words
+Overlap:    50 words
 ```
 
-file is ignored by Git so machine-specific configuration and future secrets are not committed.
+Adjacent chunks share 50 words.
 
-## First-Time Native Setup
+Overlap helps preserve context when information crosses a chunk boundary.
 
-This project uses a Python virtual environment for its Python dependencies when running directly on the host.
+The original paragraph-based strategy produced many extremely small chunks when tested against a large document.
 
-From the repository root, create the virtual environment:
+The fixed-size strategy provides more consistent chunk sizes.
 
-```bash
-python -m venv .venv
-```
+### Embedding Generation
 
-Activate it:
-
-```bash
-source .venv/bin/activate
-```
-
-Install the Python dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-When the virtual environment is active, the terminal prompt should normally begin with:
+Text embeddings are generated with:
 
 ```text
-(.venv)
+BAAI/bge-small-en-v1.5
 ```
 
-The virtual environment itself is local to the machine and is excluded from Git. `requirements.txt` records the Python packages needed to recreate it.
+through FastEmbed.
+
+The embedding-model cache is stored in:
+
+```text
+data/fastembed_cache/
+```
+
+The cache persists across application runs.
+
+The embedding model may need to be downloaded on first use. Subsequent runs can reuse the cached files.
+
+### Chroma Vector Storage
+
+Chroma stores document embeddings and metadata persistently:
+
+```text
+data/chroma/
+```
+
+Each indexed chunk includes information such as:
+
+- Source filename
+- Document hash
+- Chunk index
+- Chunk text
+
+Chroma uses cosine-distance-based similarity search.
+
+The application uses Chroma's embedded persistent client. No separate Chroma server needs to be started.
+
+### Incremental Indexing
+
+Each document receives a SHA-256 hash calculated from its file contents.
+
+During synchronization, the application compares the current knowledge directory against documents already indexed in Chroma.
+
+Files can be classified as:
+
+| Status | Action |
+|---|---|
+| Added | Generate and store embeddings |
+| Changed | Replace the document's indexed chunks |
+| Deleted | Remove the document's indexed chunks |
+| Unchanged | Reuse existing embeddings |
+
+This avoids regenerating embeddings for documents that have not changed.
+
+**Important limitation:** File hashes detect changes to document contents, not changes to the chunking algorithm or embedding model. Changing those settings may require rebuilding the existing vector index.
+
+### Retrieval
+
+When a question is submitted:
+
+1. FastEmbed generates an embedding for the question.
+2. Chroma searches for similar stored document chunks.
+3. The most relevant chunks are returned with similarity scores.
+4. The application constructs a prompt containing the retrieved reference material.
+5. Qwen generates an answer using that context.
+
+Retrieval results preserve source filenames and chunk indices for inspection.
+
+The current system does not yet provide fully verified, passage-level citations in generated answers.
+
+## Large-Document Validation
+
+The project uses *Frankenstein* by Mary Shelley as a realistic RAG test document.
+
+The novel provides a substantially larger and more complex test than short notes or synthetic examples.
+
+The text is available through [Project Gutenberg](https://www.gutenberg.org/ebooks/84).
+
+### Initial Findings
+
+The original paragraph-based chunking strategy produced:
+
+```text
+926 chunks
+165 chunks under 20 words
+```
+
+Line-ending differences were also found to affect paragraph detection.
+
+The ingestion process was updated to handle the source text consistently, and chunking was changed to fixed-size overlapping word windows.
+
+### Updated Chunk Statistics
+
+After re-indexing the knowledge base:
+
+```text
+Documents:              4
+Chunks:                 408
+Smallest chunk:         113 words
+Largest chunk:          250 words
+Average chunk:          248.9 words
+Chunks under 20 words:  0
+Chunks over 500 words:  0
+```
+
+These statistics describe the November 2026 validation dataset.
+
+The result is a more consistent chunk distribution, although consistent chunk sizes do not automatically guarantee better retrieval relevance.
+
+## Running the Application
 
 ### External Requirements
 
-The Python virtual environment and Docker image do not install the local AI inference runtime itself.
+The Python virtual environment and Docker image do not install the local inference runtime.
 
-The current development setup also requires:
+The current development environment requires:
 
-- a compatible inference machine
-- a working `llama.cpp` build
-- a compatible model
-- sufficient CPU/GPU memory for the selected model
+- A compatible llama.cpp build
+- A compatible GGUF model
+- Sufficient CPU/GPU memory
+- AMD GPU drivers and ROCm for the current GPU setup
 
-The current development machine additionally uses:
-
-- AMD GPU drivers
-- ROCm
-- AMD/HIP support in llama.cpp
-- Qwen3-14B-Q4_K_M GGUF
-
-The current helper script expects:
+The helper script currently expects:
 
 ```text
 llama.cpp:
@@ -285,220 +422,315 @@ These paths can be changed in:
 scripts/start_llama_server.sh
 ```
 
-## Running the LLM Environment
+### Python Environment
 
-Two helper scripts are included:
-
-```text
-scripts/
-├── monitor_gpu.sh
-└── start_llama_server.sh
-```
-
-### VS Code
-
-The repository includes VS Code Tasks for starting the local development environment.
-
-Open the Command Palette:
-
-```text
-Ctrl+Shift+P
-```
-
-Select:
-
-```text
-Tasks: Run Task
-```
-
-Then run:
-
-```text
-Start Local AI Environment
-```
-
-This starts:
-
-- llama.cpp server in a dedicated VS Code terminal
-- AMD GPU monitoring in a dedicated VS Code terminal
-
-Then open another terminal and start the application:
+From the repository root:
 
 ```bash
-python src/llm_client.py
+python -m venv .venv
 ```
 
-### Manual Native Startup
-
-Activate the Python virtual environment if it is not already active:
+Activate:
 
 ```bash
 source .venv/bin/activate
 ```
 
-The same components can be started without VS Code.
+Install dependencies:
 
-From the repository root:
+```bash
+pip install -r requirements.txt
+```
+
+### Start llama.cpp
+
+The server can be launched manually:
 
 ```bash
 ./scripts/start_llama_server.sh
 ```
 
-In another terminal:
+Or through VS Code:
+
+1. Open the Command Palette with `Ctrl+Shift+P`.
+2. Select `Tasks: Run Task`.
+3. Select `Start Local AI Environment`.
+
+The VS Code task starts the llama.cpp server and GPU monitoring in separate terminals.
+
+Confirm that the inference server is available:
 
 ```bash
-./scripts/monitor_gpu.sh
+curl -sS http://127.0.0.1:8080/props
 ```
 
-Then start the chat application:
+The server listens locally at:
+
+```text
+http://127.0.0.1:8080
+```
+
+### Start the Conversation Client
+
+With llama.cpp running:
 
 ```bash
 python src/llm_client.py
 ```
 
-### Docker Startup
+The application can create, resume, and delete saved conversations.
 
-Docker is optional. The application can still be run directly through Python.
+### Inspect Document Chunking
 
-The current Docker setup containerizes the Python application while leaving llama.cpp and GPU inference on the host machine.
+```bash
+python src/chunk_inspect.py
+```
 
-First create a local environment file:
+This reports document counts, chunk counts, and chunk-size statistics.
+
+The embedding model and llama.cpp server are not required to inspect chunk sizes.
+
+### Run Retrieval Only
+
+```bash
+python src/retrieval_demo.py
+```
+
+This loads the knowledge documents, synchronizes Chroma, and allows interactive semantic searches.
+
+The llama.cpp server is not required.
+
+### Run RAG Question Answering
+
+With llama.cpp running:
+
+```bash
+python src/rag_demo.py
+```
+
+This performs retrieval and sends the retrieved reference material to Qwen for answer generation.
+
+The response is generated by the local model rather than retrieved directly from the vector database.
+
+## RAG Evaluation
+
+The project includes a repeatable evaluation workflow.
+
+Evaluation cases are stored in:
+
+```text
+evals/frankenstein.json
+```
+
+The current evaluation set contains six questions covering:
+
+1. William Frankenstein's murder accusation
+2. The creature's request for a female companion
+3. The books discovered and read by the creature
+4. Justine Moritz's conviction and execution
+5. Justine's false confession
+6. An intentionally unanswerable question
+
+Each case can define:
+
+- A question
+- An expected source document
+- Required evidence phrases
+- Required answer phrases
+- Phrases that should trigger manual review
+
+### Retrieval Evaluation
+
+Run:
+
+```bash
+python src/evaluate_rag.py --retrieval-only
+```
+
+This tests the real FastEmbed and Chroma retrieval pipeline without calling Qwen.
+
+The evaluator checks whether expected evidence appears within the retrieved chunks.
+
+The default retrieval limit is 10.
+
+For the current Frankenstein test set, expected evidence was found at these ranks:
+
+| Question | Evidence rank |
+|---|---:|
+| William's murder accusation | 5 |
+| Female companion | 3 |
+| Creature's books | 10 |
+| Justine's verdict | 5 |
+| Justine's false confession | 6 |
+| Unanswerable question | N/A |
+
+The unanswerable case intentionally has no expected evidence passage.
+
+The books question remains a retrieval weakness: the relevant passage was only found at rank 10.
+
+### Full RAG Evaluation
+
+With llama.cpp running:
+
+```bash
+python src/evaluate_rag.py
+```
+
+This performs retrieval, generates answers with Qwen, and evaluates the results.
+
+The evaluator checks for required phrases and flags selected misleading statements.
+
+Reports are written to:
+
+```text
+data/rag_evaluations/
+```
+
+Reports use timestamped JSON filenames and contain:
+
+- Evaluation metadata
+- Retrieval results and similarity scores
+- Retrieved chunk text
+- Generated answers
+- Evidence-check results
+- Answer-check results
+- Inference timing
+
+Generated evaluation reports are excluded from Git.
+
+### Evaluation Limitations
+
+The answer checks are heuristic.
+
+A passing answer means the required expressions were found and no configured review phrases were detected.
+
+It does **not** prove that every statement in the answer is factually correct.
+
+Development revealed both kinds of evaluation error:
+
+**False positive:** An answer contained the expected facts but also made an unsupported claim. The keyword checker passed it.
+
+**False negative:** Qwen correctly explained that information was unavailable, but used wording the evaluator did not recognize.
+
+These findings are part of the evaluation process rather than evidence that keyword matching can provide complete factual verification.
+
+The saved reports make it possible to inspect actual model responses instead of relying entirely on automated PASS/FAIL labels.
+
+For meaningful changes to prompts, embeddings, retrieval settings, or chunking, generated answers should be reviewed alongside the automated results.
+
+## Docker
+
+Docker is optional for native development.
+
+The current Docker setup packages the Python application separately from llama.cpp.
+
+```text
+Docker container
+├── Python 3.12
+├── application source
+├── knowledge files
+├── context management
+├── database integration
+├── tests
+└── Python dependencies
+
+Ubuntu host
+├── llama-server
+├── Qwen3-14B
+├── ROCm
+└── AMD GPU
+```
+
+The model, inference server, GPU drivers, and ROCm runtime remain on the host.
+
+### Configuration
+
+A local environment file can be created with:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` for the local machine.
-
-Example:
+Example values:
 
 ```text
 LLM_SERVER_URL=http://127.0.0.1:8080
 MODEL_PATH=/path/to/your/model.gguf
 ```
 
-Start the llama.cpp server separately on the host.
+The actual `.env` file is excluded from Git.
 
-On the current development machine:
-
-```bash
-./scripts/start_llama_server.sh
-```
-
-Confirm the server is responding:
-
-```bash
-curl -sS http://127.0.0.1:8080/props
-```
-
-Build the application image:
+### Build the Application
 
 ```bash
 docker compose build
 ```
 
-Run the application:
+### Run the Application
+
+Start llama.cpp separately on the host, then run:
 
 ```bash
 docker compose run --rm app
 ```
 
-The `--rm` option removes the disposable application container after it exits.
+The `--rm` option removes the disposable container after the application exits.
 
-Conversation history remains available because:
+### Persistent Data
+
+Docker Compose bind-mounts:
 
 ```text
 ./data
 ```
 
-on the host is mounted inside the container at:
+from the host to:
 
 ```text
 /app/data
 ```
 
-The container can therefore be destroyed and recreated without deleting the SQLite conversation database.
+inside the container.
 
-### Current Docker Networking
+This preserves local application data when containers are recreated.
 
-The current Compose configuration uses:
+### Container Networking
+
+The current Linux configuration uses:
 
 ```text
 network_mode: host
 ```
 
-on Linux.
-
-This allows the containerized application to reach the host llama.cpp server through:
+The container can therefore communicate with the host inference server at:
 
 ```text
 http://127.0.0.1:8080
 ```
 
-without exposing llama-server to the wider network.
+The networking configuration has been tested on the Ubuntu development machine.
 
-This networking configuration has been tested on the current Ubuntu development machine.
+Other operating systems may require different container networking.
 
-The application image itself is not intended to depend on AMD hardware, but the current Compose networking and helper scripts are Linux-focused. Running the project with a different host environment, such as macOS, may require different inference-server and container-network configuration.
+### Docker Build Context
 
-## Docker Files
+The `.dockerignore` file excludes unnecessary local development files, including:
 
-The repository includes:
+- Git metadata
+- Python virtual environments
+- Local application databases
+- Chroma storage
+- FastEmbed caches
+- Environment secrets
+- Large model files
 
-```text
-Dockerfile
-.dockerignore
-compose.yaml
-.env.example
-```
+The Dockerfile copies the application source, knowledge files, and test files into the image.
 
-Their roles are:
-
-```text
-Dockerfile
-→ describes how the application image is built
-
-.dockerignore
-→ excludes unnecessary local files from the Docker build context
-
-compose.yaml
-→ describes how the application container is configured and run
-
-.env.example
-→ documents machine-specific environment variables
-```
-
-The Docker image currently contains:
-
-- Python 3.12
-- Python dependencies
-- application source code
-- pytest configuration
-- automated tests
-
-It does not contain:
-
-- Qwen model files
-- llama.cpp
-- ROCm
-- AMD drivers
-- the host virtual environment
-- Git history
-- local conversation data
-
-## Optional System Monitoring
-
-For general CPU, RAM, process, network, and disk monitoring:
-
-```bash
-gnome-system-monitor
-```
-
-On this development machine, GNOME System Monitor should be launched from a normal Ubuntu terminal rather than the Snap-installed VS Code integrated terminal because of a GSettings environment conflict.
+The current Docker image does not copy the `evals/` directory, so the documented evaluation commands are intended for native execution.
 
 ## llama.cpp Configuration
 
-The current server configuration uses:
+The current development configuration is equivalent to:
 
 ```bash
 ./build/bin/llama-server \
@@ -512,34 +744,69 @@ The current server configuration uses:
   --fit-target 3072
 ```
 
-Current model:
+The current configuration limits parallelism and uses llama.cpp memory-fitting options to leave GPU resources available for the desktop.
 
-```text
-Qwen3-14B-Q4_K_M.gguf
-```
+Earlier configurations consumed excessive VRAM and caused instability in other applications.
 
-The 32K context configuration provides significantly more usable conversation history while still leaving some GPU memory available for the desktop and other applications.
+The current configuration has been more stable on the development machine.
+
+GPU memory availability and inference performance depend on the model, context size, runtime, and other active applications.
 
 ## GPU Monitoring
 
-GPU utilization and VRAM use can be monitored with:
+Run:
 
 ```bash
 ./scripts/monitor_gpu.sh
 ```
 
-The underlying command is:
+The script uses:
 
 ```bash
 watch -n 1 rocm-smi --showmemuse --showuse
 ```
 
-This makes it easier to observe the difference between:
+This helps distinguish between:
 
-- VRAM allocation
+- Allocated GPU memory
 - GPU compute utilization
-- idle model memory
-- active inference load
+- Model memory remaining allocated while idle
+- Additional activity during inference
+
+High compute utilization during token generation does not necessarily indicate a problem.
+
+VRAM allocation is a separate resource consideration because other desktop applications also require GPU memory.
+
+## Image Generation Experiments
+
+The project originally included experiments with local image generation.
+
+The image generation stack used:
+
+```text
+Ubuntu
+   |
+   v
+AMDGPU / ROCm
+   |
+   v
+PyTorch
+   |
+   v
+ComfyUI
+   |
+   v
+SDXL models
+```
+
+Models tested included:
+
+- SDXL Lightning
+- Juggernaut XL v9
+
+The repository contains a saved ComfyUI workflow for comparing model outputs using controlled settings such as prompt, resolution, and seed.
+
+The project subsequently shifted toward local LLM infrastructure, persistent application state, and RAG.
 
 ## Project Structure
 
@@ -550,23 +817,44 @@ local-ai-lab/
 │       └── tests.yml
 ├── .vscode/
 │   └── tasks.json
-├── data/
-│   └── chat_history.db        # local only, ignored by Git
+├── data/                         # Local generated data
+│   ├── chat_history.db
+│   ├── chroma/
+│   ├── fastembed_cache/
+│   └── rag_evaluations/
 ├── docs/
 │   ├── architecture.md
 │   ├── experiments.md
 │   └── troubleshooting.md
+├── evals/
+│   └── frankenstein.json
+├── knowledge/
+│   ├── ai_notes.txt
+│   ├── docker_notes.txt
+│   ├── dune.txt
+│   └── frankenstein.txt
 ├── scripts/
 │   ├── monitor_gpu.sh
 │   └── start_llama_server.sh
 ├── src/
+│   ├── chunk_inspect.py
 │   ├── config.py
 │   ├── context_manager.py
 │   ├── database.py
-│   └── llm_client.py
+│   ├── evaluate_rag.py
+│   ├── llm_client.py
+│   ├── rag.py
+│   ├── rag_demo.py
+│   ├── retrieval.py
+│   ├── retrieval_demo.py
+│   └── vector_store.py
 ├── tests/
 │   ├── test_context_manager.py
-│   └── test_database.py
+│   ├── test_database.py
+│   ├── test_rag.py
+│   ├── test_rag_evaluation.py
+│   ├── test_retrieval.py
+│   └── test_vector_store.py
 ├── workflows/
 │   └── SDXL_Model_Comparison.json
 ├── .dockerignore
@@ -579,13 +867,21 @@ local-ai-lab/
 └── README.md
 ```
 
+The contents of `data/` are generated locally and are intentionally excluded from Git.
+
 ## Testing
 
-Automated tests currently cover database behavior and context-budgeting logic.
+The project uses pytest for automated Python testing.
 
 ### Native Testing
 
-Run the test suite from the repository root with the virtual environment active:
+From the repository root:
+
+```bash
+pytest -q
+```
+
+For more detailed output:
 
 ```bash
 python -m pytest -v
@@ -593,126 +889,60 @@ python -m pytest -v
 
 ### Docker Testing
 
-The same test suite can be run inside the application container:
-
 ```bash
 docker compose run --rm app python -m pytest -v
 ```
 
-This verifies that the Python application and tests also work inside the reproducible container environment rather than only inside the host development environment.
+### Unit Test Coverage
 
-The context-manager tests cover:
+Current tests cover:
 
-- returning the complete history when it fits
-- removing the oldest conversation turns when necessary
-- preserving the original full message history
-- rejecting requests that cannot fit even after truncation
-- efficient cutoff selection with a large synthetic conversation
+- SQLite conversation creation and deletion
+- Saving and loading messages
+- Conversation pagination and ordering
+- Context-budget calculations
+- Retaining recent complete conversation turns
+- Preserving the system message
+- Rejection of requests that cannot fit
+- Efficient history cutoff selection
+- Document loading and chunking
+- Vector-store indexing and synchronization
+- Detection of added, changed, and deleted documents
+- Retrieval behavior
+- RAG prompt construction
+- Evaluation phrase matching
+- Evidence-rank selection
+- Answer-checking rules
 
-The database tests cover:
+The latest local test run completed with 26 passing tests.
 
-- creating conversations
-- saving and loading messages
-- checking whether conversations exist
-- deleting conversations and associated messages
-- handling deletion of missing conversations
-- pagination through conversation history
-- ordering conversations by most recent activity
+Most unit tests use controlled inputs, temporary data, or test doubles rather than making live inference requests.
+
+Unit test success does not establish model-answer accuracy.
 
 ## Continuous Integration
 
-GitHub Actions automatically runs the Python test suite on pushes and pull requests. The workflow can also be started manually from GitHub Actions.
+GitHub Actions runs the Python test suite on pushes and pull requests.
 
-The CI workflow:
+The workflow:
 
-- runs on Ubuntu 24.04
-- uses Python 3.12
-- installs dependencies from `requirements.txt`
-- checks Python syntax
-- runs the pytest suite
-- uses read-only repository permissions
-- has a five-minute job timeout
+- Uses Ubuntu 24.04
+- Uses Python 3.12
+- Installs dependencies from `requirements.txt`
+- Checks Python syntax
+- Executes pytest
+- Uses read-only repository permissions
+- Has a five-minute job timeout
 
-The CI workflow tests the Python database and context-management code.
+CI validates the Python application and test logic.
 
-It does not run the local llama.cpp/Qwen/ROCm inference stack because the standard GitHub-hosted runner does not provide the required local GPU environment.
+It does not run local Qwen inference or full FastEmbed/Chroma retrieval evaluations against the development knowledge base.
 
-## What This Project Is Exploring
+Those integration checks require the appropriate local runtime, models, and persistent data.
 
-The goal is not simply to run an AI model.
+## Privacy and Local Data
 
-The project is being used to understand the systems surrounding local AI applications, including:
-
-- Linux processes and filesystem behavior
-- users, groups, and permissions
-- AMD GPU compute and ROCm
-- model loading and VRAM usage
-- quantized GGUF models
-- HTTP request/response flow
-- streaming APIs
-- client/server boundaries
-- Python data structures
-- application state
-- relational databases
-- SQL queries and relationships
-- transactions and persistence
-- context windows and token budgeting
-- algorithmic scaling
-- automated testing
-- continuous integration
-- environment-based configuration
-- Docker images and containers
-- bind-mounted persistent storage
-- container networking
-- reproducible application environments
-- debugging across multiple software layers
-
-## Current Development Status
-
-Working:
-
-- Local Qwen inference
-- AMD GPU acceleration
-- llama.cpp HTTP server
-- Streaming Python application
-- Multi-turn context
-- SQLite persistence
-- Multiple conversations
-- Conversation resume
-- Conversation deletion
-- Automatic conversation titles
-- Runtime context-window detection
-- Token-aware context budgeting
-- Recent-history context truncation
-- Environment-based configuration
-- Startup error handling
-- Automated database tests
-- Automated context-manager tests
-- GPU monitoring scripts
-- VS Code startup tasks
-- GitHub Actions CI
-- Automated test runs on pushes and pull requests
-- Dockerized Python application
-- Docker Compose runtime configuration
-- Persistent SQLite storage across disposable containers
-- Test execution inside Docker
-
-Planned:
-
-- Retrieval-Augmented Generation (RAG)
-- Retrieval from private documents
-- Source-aware retrieval and provenance
-- Tool calling
-- Optional web/search tools
-- Improved long-term memory and context handling
-- Private/non-persistent sessions
-- Additional logging and observability
-- More portable Docker networking for non-Linux hosts
-- Additional application interfaces beyond the terminal client
-
-## Privacy
-
-The current LLM can run entirely on the local machine.
+The project is designed around local inference and locally stored information.
 
 The llama.cpp server binds to:
 
@@ -720,10 +950,79 @@ The llama.cpp server binds to:
 127.0.0.1
 ```
 
-rather than exposing the service to the local network.
+rather than being exposed to the local network.
 
-Conversation history is stored locally in SQLite and the database file is excluded from Git.
+No cloud model API is required for the current inference workflow.
 
-The Docker configuration bind-mounts local application data rather than embedding conversation history into the application image.
+Initial installation of Python packages or embedding-model files may require downloading dependencies.
 
-No cloud model API is required for the current local inference workflow.
+Local application data is excluded from Git, including:
+
+- SQLite conversation history
+- Chroma databases
+- Chroma backups
+- FastEmbed model caches
+- Generated evaluation reports
+- Environment configuration files
+
+The example evaluation questions and public-domain test document remain part of the source repository.
+
+## Current Limitations
+
+The project is a working development lab, not a production-ready AI service.
+
+Current limitations include:
+
+- The persistent chat client and document RAG demo are separate workflows.
+- Conversation context selection is primarily recency-based.
+- Retrieval quality varies with document content, chunking, and question wording.
+- Relevant evidence may appear near the bottom of the retrieval limit.
+- The chunking strategy uses word counts rather than model-token counts.
+- Changing chunking or embedding settings may require manually rebuilding the index.
+- Generated answers can include unsupported statements even when relevant evidence was retrieved.
+- Automated answer checks use phrase-based heuristics.
+- Generated answers do not yet provide verified passage-level citations.
+- Docker networking is currently optimized for the Ubuntu development environment.
+- Hardware-specific inference configuration may not work unchanged on other machines.
+
+## Planned Improvements
+
+Potential next steps include:
+
+- Integrating document retrieval into persistent conversations
+- Improving retrieval relevance and ranking
+- Source-linked citations and more precise provenance
+- Better handling of document and model version changes
+- Additional document formats
+- Improved long-term conversation retrieval
+- Private or non-persistent sessions
+- Tool calling and external integrations
+- Additional logging and observability
+- More portable runtime configuration
+- Additional application interfaces
+
+## Project Purpose
+
+Local AI Lab is an engineering exercise in building and understanding the surrounding systems required to operate local AI applications.
+
+The work includes:
+
+- Linux processes and permissions
+- AMD GPU compute
+- Model loading and inference
+- HTTP APIs
+- Streaming responses
+- Python application architecture
+- SQL and relational persistence
+- Context-window management
+- Algorithmic efficiency
+- Embeddings and vector search
+- Incremental data processing
+- Retrieval-Augmented Generation
+- Automated testing
+- Evaluation and regression testing
+- Docker and container networking
+- GitHub Actions
+- Debugging across multiple infrastructure layers
+
+The emphasis is on reproducibility, local control, and understanding how these components interact.

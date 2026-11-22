@@ -79,25 +79,19 @@ def test_chunk_documents_preserves_source_metadata():
         documents
     )
 
-    assert len(chunks) == 3
+    assert len(chunks) == 2
 
     assert chunks[0] == {
         "source": "dune.txt",
         "file_hash": "dune-hash",
         "chunk_index": 0,
         "text": (
-            "Paul can see possible futures."
+            "Paul can see possible futures. "
+            "Fremen wear stillsuits."
         ),
     }
 
     assert chunks[1] == {
-        "source": "dune.txt",
-        "file_hash": "dune-hash",
-        "chunk_index": 1,
-        "text": "Fremen wear stillsuits.",
-    }
-
-    assert chunks[2] == {
         "source": "docker.txt",
         "file_hash": "docker-hash",
         "chunk_index": 0,
@@ -105,3 +99,28 @@ def test_chunk_documents_preserves_source_metadata():
             "Bind mounts preserve host data."
         ),
     }
+
+
+def test_chunk_documents_handles_crlf_line_endings():
+    documents = [
+        {
+            "source": "book.txt",
+            "file_hash": "book-hash",
+            "text": (
+                "First paragraph.\r\n"
+                "\r\n"
+                "Second paragraph."
+            ),
+        }
+    ]
+
+    chunks = chunk_documents(
+        documents
+    )
+
+    assert len(chunks) == 1
+
+    assert chunks[0]["text"] == (
+        "First paragraph. "
+        "Second paragraph."
+    )

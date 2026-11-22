@@ -1,0 +1,116 @@
+
+[
+  {
+    "id": "william_accusation",
+    "source": "frankenstein.txt",
+    "question": "Who was accused of murdering William Frankenstein?",
+    "evidence_groups": [
+      ["Justine"]
+    ],
+    "answer_groups": [
+      ["Justine"]
+    ],
+    "review_phrases": [
+      "ultimately declared innocent",
+      "was acquitted",
+      "found not guilty"
+    ]
+  },
+  {
+    "id": "female_companion",
+    "source": "frankenstein.txt",
+    "question": "What did the creature ask Victor to make for him?",
+    "evidence_groups": [
+      ["female"],
+      ["accompany", "companion"]
+    ],
+    "answer_groups": [
+      ["female", "woman"],
+      ["companion", "mate", "partner"]
+    ]
+  },
+  {
+    "id": "creature_books",
+    "source": "frankenstein.txt",
+    "question": "What books did the creature read?",
+    "evidence_groups": [
+      ["Paradise Lost"],
+      ["Plutarch"],
+      ["Werter", "Werther"]
+    ],
+    "answer_groups": [
+      ["Paradise Lost"],
+      ["Plutarch"],
+      ["Werter", "Werther"]
+    ]
+  },
+  {
+    "id": "justine_verdict",
+    "source": "frankenstein.txt",
+    "question": "Was Justine Moritz acquitted, and what ultimately happened to her?",
+    "evidence_groups": [
+      ["Justine"],
+      ["condemned", "execution", "executed", "suffered"]
+    ],
+    "answer_groups": [
+      ["convicted", "found guilty", "condemned"],
+      ["executed", "hanged", "put to death"]
+    ],
+    "review_phrases": [
+      "was acquitted",
+      "found not guilty",
+      "released after trial"
+    ]
+  },
+  {
+    "id": "justine_false_confession",
+    "source": "frankenstein.txt",
+    "question": "Did Justine Moritz confess to murdering William Frankenstein, and was her confession truthful?",
+    "evidence_groups": [
+      [
+        "confessed a lie",
+        "confession was false",
+        "confessed falsely"
+      ]
+    ],
+    "answer_groups": [
+      ["confessed", "confession"],
+      [
+        "false",
+        "lie",
+        "untrue",
+        "not true",
+        "under pressure",
+        "coerced"
+      ]
+    ],
+    "review_phrases": [
+      "never confessed",
+      "did not confess",
+      "confession was truthful",
+      "confession was true",
+      "she murdered William"
+    ]
+  },
+  {
+    "id": "unanswerable_question",
+    "source": "frankenstein.txt",
+    "question": "What was the creature's Social Security number?",
+    "evidence_groups": [],
+    "answer_groups": [
+      [
+        "not stated",
+        "not mentioned",
+        "does not mention",
+        "does not contain",
+        "do not address",
+        "not provided",
+        "not specified",
+        "cannot answer",
+        "can't determine",
+        "no information",
+        "unknown"
+      ]
+    ]
+  }
+]

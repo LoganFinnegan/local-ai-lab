@@ -1,3 +1,4 @@
+
 import requests
 
 import config
@@ -18,7 +19,7 @@ from vector_store import (
 
 
 KNOWLEDGE_DIRECTORY = "knowledge"
-RETRIEVAL_LIMIT = 3
+RETRIEVAL_LIMIT = 10
 
 
 documents = load_documents(
@@ -45,15 +46,12 @@ sync_summary = sync_collection(
 print(
     f"Added: {len(sync_summary['added'])}"
 )
-
 print(
     f"Changed: {len(sync_summary['changed'])}"
 )
-
 print(
     f"Deleted: {len(sync_summary['deleted'])}"
 )
-
 print(
     f"Unchanged: {len(sync_summary['unchanged'])}"
 )
@@ -77,6 +75,9 @@ while True:
     }:
         break
 
+    if not query:
+        continue
+
     query_embedding = embed_query(
         embedding_model,
         query,
@@ -88,26 +89,28 @@ while True:
         limit=RETRIEVAL_LIMIT,
     )
 
-    print("\nRetrieved chunks:")
+    if not results:
+        print(
+            "\nNo relevant chunks found."
+        )
+        continue
+
+    print(
+        f"\nRetrieved {len(results)} chunks:"
+    )
 
     retrieved_chunks = []
 
-    for score, chunk in results:
+    for rank, (score, chunk) in enumerate(
+        results,
+        start=1,
+    ):
         print(
-            f"\nSimilarity: {score:.3f}"
-        )
-
-        print(
-            f"Source: {chunk['source']}"
-        )
-
-        print(
+            f"{rank}. "
+            f"Similarity: {score:.3f} | "
+            f"Source: {chunk['source']} | "
             f"Chunk: "
             f"{chunk.get('chunk_index', 'unknown')}"
-        )
-
-        print(
-            chunk["text"]
         )
 
         retrieved_chunks.append(
