@@ -1,4 +1,3 @@
-
 [
   {
     "id": "william_accusation",
@@ -8,12 +7,19 @@
       ["Justine"]
     ],
     "answer_groups": [
+      ["Justine"],
+      ["accused", "charged", "tried", "on trial"]
+    ],
+    "citation_support_groups": [
       ["Justine"]
     ],
     "review_phrases": [
       "ultimately declared innocent",
+      "ultimately found innocent",
       "was acquitted",
-      "found not guilty"
+      "found not guilty",
+      "was exonerated",
+      "misinterpreted to implicate Justine"
     ]
   },
   {
@@ -27,6 +33,10 @@
     "answer_groups": [
       ["female", "woman"],
       ["companion", "mate", "partner"]
+    ],
+    "citation_support_groups": [
+      ["female"],
+      ["companion", "accompany"]
     ]
   },
   {
@@ -39,6 +49,11 @@
       ["Werter", "Werther"]
     ],
     "answer_groups": [
+      ["Paradise Lost"],
+      ["Plutarch"],
+      ["Werter", "Werther"]
+    ],
+    "citation_support_groups": [
       ["Paradise Lost"],
       ["Plutarch"],
       ["Werter", "Werther"]
@@ -55,6 +70,11 @@
     "answer_groups": [
       ["convicted", "found guilty", "condemned"],
       ["executed", "hanged", "put to death"]
+    ],
+    "citation_support_groups": [
+      ["Justine"],
+      ["guilty", "condemned", "convicted"],
+      ["scaffold", "executed", "execution", "died", "death"]
     ],
     "review_phrases": [
       "was acquitted",
@@ -84,6 +104,9 @@
         "coerced"
       ]
     ],
+    "citation_support_groups": [
+      ["confessed a lie", "confessed falsely", "confession was false"]
+    ],
     "review_phrases": [
       "never confessed",
       "did not confess",
@@ -93,9 +116,54 @@
     ]
   },
   {
+    "id": "elizabeth_defends_justine",
+    "source": "frankenstein.txt",
+    "question": "Did Elizabeth accuse Justine of murder or defend her?",
+    "evidence_groups": [
+      ["Elizabeth"],
+      ["innocent", "defence", "defense"]
+    ],
+    "answer_groups": [
+      ["Elizabeth"],
+      ["defended", "defense", "defence", "testified"],
+      ["innocent", "innocence", "guiltless", "not guilty", "did not accuse"]
+    ],
+    "citation_support_groups": [
+      ["Elizabeth"],
+      ["innocent", "defence", "defense"]
+    ],
+    "review_phrases": [
+      "Elizabeth accused Justine",
+      "Elizabeth testified against Justine"
+    ]
+  },
+  {
+    "id": "justine_false_premise",
+    "source": "frankenstein.txt",
+    "question": "After being acquitted, where did Justine Moritz move?",
+    "evidence_groups": [
+      ["Justine"],
+      ["guilty", "condemned", "convicted"]
+    ],
+    "answer_groups": [
+      ["not acquitted", "never acquitted", "convicted", "condemned"],
+      ["executed", "died", "put to death", "hanged"]
+    ],
+    "citation_support_groups": [
+      ["Justine"],
+      ["guilty", "condemned", "convicted"],
+      ["scaffold", "executed", "execution", "died", "death"]
+    ],
+    "review_phrases": [
+      "was acquitted and moved",
+      "moved after her acquittal"
+    ]
+  },
+  {
     "id": "unanswerable_question",
     "source": "frankenstein.txt",
     "question": "What was the creature's Social Security number?",
+    "citations_required": false,
     "evidence_groups": [],
     "answer_groups": [
       [
