@@ -2,7 +2,30 @@ from vector_store import (
     get_collection,
     index_chunks,
     search_collection,
+    sync_collection,
 )
+
+
+class FakeEmbeddingModel:
+    def __init__(self):
+        self.passage_calls = 0
+
+    def passage_embed(
+        self,
+        texts,
+    ):
+        self.passage_calls += 1
+
+        return [
+            [
+                float(
+                    len(text)
+                ),
+                1.0,
+                0.0,
+            ]
+            for text in texts
+        ]
 
 
 def test_chroma_persists_chunks_and_metadata(
@@ -20,11 +43,19 @@ def test_chroma_persists_chunks_and_metadata(
     chunks = [
         {
             "source": "dune.txt",
-            "text": "Paul can see possible futures.",
+            "file_hash": "dune-hash",
+            "chunk_index": 0,
+            "text": (
+                "Paul can see possible futures."
+            ),
         },
         {
             "source": "docker.txt",
-            "text": "Bind mounts preserve host data.",
+            "file_hash": "docker-hash",
+            "chunk_index": 0,
+            "text": (
+                "Bind mounts preserve host data."
+            ),
         },
     ]
 
@@ -71,4 +102,191 @@ def test_chroma_persists_chunks_and_metadata(
     assert (
         chunk["text"]
         == "Paul can see possible futures."
+    )
+
+
+def test_sync_collection_skips_unchanged_document(
+    tmp_path,
+):
+    collection = get_collection(
+        path=tmp_path / "chroma",
+        name="sync_unchanged",
+    )
+
+    embedding_model = (
+        FakeEmbeddingModel()
+    )
+
+    documents = [
+        {
+            "source": "notes.txt",
+            "file_hash": "hash-one",
+            "text": "Original text.",
+        }
+    ]
+
+    first_summary = sync_collection(
+        collection,
+        documents,
+        embedding_model,
+    )
+
+    assert first_summary["added"] == [
+        "notes.txt"
+    ]
+
+    assert (
+        embedding_model.passage_calls
+        == 1
+    )
+
+    second_summary = sync_collection(
+        collection,
+        documents,
+        embedding_model,
+    )
+
+    assert (
+        second_summary["unchanged"]
+        == ["notes.txt"]
+    )
+
+    assert (
+        embedding_model.passage_calls
+        == 1
+    )
+
+    assert collection.count() == 1
+
+
+def test_sync_collection_replaces_changed_document(
+    tmp_path,
+):
+    collection = get_collection(
+        path=tmp_path / "chroma",
+        name="sync_changed",
+    )
+
+    embedding_model = (
+        FakeEmbeddingModel()
+    )
+
+    original_documents = [
+        {
+            "source": "notes.txt",
+            "file_hash": "old-hash",
+            "text": (
+                "First chunk.\n\n"
+                "Second chunk."
+            ),
+        }
+    ]
+
+    sync_collection(
+        collection,
+        original_documents,
+        embedding_model,
+    )
+
+    assert collection.count() == 2
+
+    changed_documents = [
+        {
+            "source": "notes.txt",
+            "file_hash": "new-hash",
+            "text": "Replacement text.",
+        }
+    ]
+
+    summary = sync_collection(
+        collection,
+        changed_documents,
+        embedding_model,
+    )
+
+    assert summary["changed"] == [
+        "notes.txt"
+    ]
+
+    assert collection.count() == 1
+
+    stored = collection.get(
+        include=[
+            "documents",
+            "metadatas",
+        ]
+    )
+
+    assert stored["documents"] == [
+        "Replacement text."
+    ]
+
+    assert (
+        stored["metadatas"][0][
+            "file_hash"
+        ]
+        == "new-hash"
+    )
+
+
+def test_sync_collection_removes_deleted_document(
+    tmp_path,
+):
+    collection = get_collection(
+        path=tmp_path / "chroma",
+        name="sync_deleted",
+    )
+
+    embedding_model = (
+        FakeEmbeddingModel()
+    )
+
+    documents = [
+        {
+            "source": "keep.txt",
+            "file_hash": "keep-hash",
+            "text": "Keep this.",
+        },
+        {
+            "source": "delete.txt",
+            "file_hash": "delete-hash",
+            "text": "Delete this.",
+        },
+    ]
+
+    sync_collection(
+        collection,
+        documents,
+        embedding_model,
+    )
+
+    assert collection.count() == 2
+
+    remaining_documents = [
+        documents[0]
+    ]
+
+    summary = sync_collection(
+        collection,
+        remaining_documents,
+        embedding_model,
+    )
+
+    assert summary["deleted"] == [
+        "delete.txt"
+    ]
+
+    assert collection.count() == 1
+
+    stored = collection.get(
+        include=[
+            "metadatas",
+        ]
+    )
+
+    assert (
+        stored["metadatas"][0][
+            "source"
+        ]
+        == "keep.txt"
     )

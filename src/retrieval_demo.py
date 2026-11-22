@@ -1,6 +1,4 @@
 from retrieval import (
-    chunk_documents,
-    embed_chunks,
     embed_query,
     load_documents,
     load_embedding_model,
@@ -8,8 +6,8 @@ from retrieval import (
 
 from vector_store import (
     get_collection,
-    index_chunks,
     search_collection,
+    sync_collection,
 )
 
 
@@ -20,13 +18,8 @@ documents = load_documents(
     KNOWLEDGE_DIRECTORY
 )
 
-chunks = chunk_documents(
-    documents
-)
-
 print(
-    f"Loaded {len(documents)} documents "
-    f"and {len(chunks)} chunks."
+    f"Loaded {len(documents)} documents."
 )
 
 print("Loading embedding model...")
@@ -34,38 +27,34 @@ embedding_model = load_embedding_model()
 
 collection = get_collection()
 
+print("Syncing knowledge files...")
 
-if collection.count() == 0:
-    print(
-        "No saved vector index found."
-    )
+sync_summary = sync_collection(
+    collection,
+    documents,
+    embedding_model,
+)
 
-    print(
-        "Embedding document chunks..."
-    )
+print(
+    f"Added: {len(sync_summary['added'])}"
+)
 
-    chunk_embeddings = embed_chunks(
-        embedding_model,
-        chunks,
-    )
+print(
+    f"Changed: {len(sync_summary['changed'])}"
+)
 
-    index_chunks(
-        collection,
-        chunks,
-        chunk_embeddings,
-    )
+print(
+    f"Deleted: {len(sync_summary['deleted'])}"
+)
 
-    print(
-        f"Stored {len(chunks)} chunks "
-        "in Chroma."
-    )
+print(
+    f"Unchanged: {len(sync_summary['unchanged'])}"
+)
 
-else:
-    print(
-        "Loaded existing Chroma collection "
-        f"with {collection.count()} chunks."
-    )
-
+print(
+    f"Chroma contains "
+    f"{collection.count()} chunks."
+)
 
 print("Ready.")
 
@@ -100,6 +89,11 @@ while True:
 
         print(
             f"Source: {chunk['source']}"
+        )
+
+        print(
+            f"Chunk: "
+            f"{chunk.get('chunk_index', 'unknown')}"
         )
 
         print(

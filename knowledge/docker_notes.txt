@@ -9,3 +9,5 @@ Docker Compose describes how containers should be configured and run. It can def
 On Linux, host networking allows a container to share the host network namespace. A container using host networking can reach services listening on the host through the same localhost interface.
 
 The Local AI Lab uses a bind mount for its SQLite data directory so conversation history survives disposable application containers.
+
+Docker containers share the host operating system kernel rather than running a complete guest operating system.
