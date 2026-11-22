@@ -26,3 +26,4 @@ Thumbs.db
 # Local application data
 data/*.db
 data/chroma/
+data/fastembed_cache/

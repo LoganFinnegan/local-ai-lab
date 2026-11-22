@@ -1,3 +1,4 @@
+from hashlib import sha256
 from pathlib import Path
 
 from fastembed import TextEmbedding
@@ -14,12 +15,17 @@ def load_documents(directory_path):
     for file_path in sorted(
         directory.glob("*.txt")
     ):
+        file_bytes = file_path.read_bytes()
+
         documents.append(
             {
                 "source": file_path.name,
-                "text": file_path.read_text(
-                    encoding="utf-8",
+                "text": file_bytes.decode(
+                    "utf-8"
                 ),
+                "file_hash": sha256(
+                    file_bytes
+                ).hexdigest(),
             }
         )
 
@@ -34,6 +40,8 @@ def chunk_documents(documents):
             "\n\n"
         )
 
+        chunk_index = 0
+
         for paragraph in paragraphs:
             cleaned_paragraph = (
                 paragraph.strip()
@@ -42,10 +50,18 @@ def chunk_documents(documents):
             if cleaned_paragraph:
                 chunks.append(
                     {
-                        "source": document["source"],
+                        "source": document[
+                            "source"
+                        ],
+                        "file_hash": document[
+                            "file_hash"
+                        ],
+                        "chunk_index": chunk_index,
                         "text": cleaned_paragraph,
                     }
                 )
+
+                chunk_index += 1
 
     return chunks
 
@@ -53,8 +69,8 @@ def chunk_documents(documents):
 def load_embedding_model():
     return TextEmbedding(
         model_name=EMBEDDING_MODEL_NAME,
+        cache_dir="data/fastembed_cache",
     )
-
 
 def embed_chunks(
     embedding_model,
