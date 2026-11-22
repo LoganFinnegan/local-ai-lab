@@ -334,3 +334,62 @@ def search_collection(
         )
 
     return scored_chunks
+
+
+def get_chunk_by_source_and_index(
+    collection,
+    source,
+    chunk_index,
+):
+    """
+    Retrieve one exact passage from Chroma
+    using its source and chunk index.
+
+    Return None when the passage is not found.
+    """
+
+    if not isinstance(source, str) or not source:
+        raise ValueError(
+            "A valid source filename is required."
+        )
+
+    if (
+        isinstance(chunk_index, bool)
+        or not isinstance(chunk_index, int)
+        or chunk_index < 0
+    ):
+        raise ValueError(
+            "chunk_index must be a non-negative integer."
+        )
+
+    chunk_id = f"{source}:{chunk_index}"
+
+    results = collection.get(
+        ids=[chunk_id],
+        include=[
+            "documents",
+            "metadatas",
+        ],
+    )
+
+    if not results["ids"]:
+        return None
+
+    document = results["documents"][0]
+    metadata = results["metadatas"][0]
+
+    if (
+        not metadata
+        or metadata.get("source") != source
+        or metadata.get("chunk_index") != chunk_index
+    ):
+        raise ValueError(
+            "Stored chunk metadata does not match "
+            "the requested citation."
+        )
+
+    return {
+        "source": source,
+        "chunk_index": chunk_index,
+        "text": document,
+    }

@@ -1,4 +1,3 @@
-
 """Automated retrieval and RAG answer evaluation."""
 
 import argparse
@@ -6,6 +5,9 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 from time import perf_counter
+
+from citation_validation import check_citation_identifiers
+from rag import citation_for_chunk
 
 
 DEFAULT_CASES_PATH = Path("evals/frankenstein.json")
@@ -72,6 +74,58 @@ def check_answer(answer, case):
         "status": status,
         "missing_groups": missing_groups,
         "flagged_phrases": flagged_phrases,
+    }
+
+
+def check_citation_support(answer, case, retrieved_chunks):
+    """
+    Check citation IDs and curated textual evidence anchors.
+
+    This is a deterministic regression check, not semantic fact-checking.
+    A matching phrase does not prove that a claim is supported.
+    """
+
+    identifiers = check_citation_identifiers(
+        answer,
+        retrieved_chunks,
+    )
+
+    valid = identifiers["valid_citations"]
+    invalid = identifiers["invalid_citations"]
+
+    cited_identifiers = set(valid)
+
+    cited_chunks = [
+        chunk
+        for chunk in retrieved_chunks
+        if citation_for_chunk(chunk) in cited_identifiers
+    ]
+
+    missing_support_groups = [
+        group
+        for group in case.get("citation_support_groups", [])
+        if not any(
+            matches_groups(chunk["text"], [group])
+            for chunk in cited_chunks
+        )
+    ]
+
+    citations_required = case.get("citations_required", True)
+
+    if invalid or missing_support_groups:
+        status = "FAIL"
+    elif citations_required and not valid:
+        status = "FAIL"
+    elif not valid:
+        status = "N/A"
+    else:
+        status = "PASS"
+
+    return {
+        "status": status,
+        "valid_citations": valid,
+        "invalid_citations": invalid,
+        "missing_support_groups": missing_support_groups,
     }
 
 
@@ -194,6 +248,10 @@ def main():
         "collection_count": collection.count(),
         "sync_summary": sync_summary,
         "cases": [],
+        "citation_check_note": (
+            "Citation checks verify identifiers and selected textual "
+            "anchors only; they do not establish factual entailment."
+        ),
     }
 
     print(
@@ -277,15 +335,20 @@ def main():
             "answer_check": {
                 "status": "SKIP"
             },
+            "citation_check": {
+                "status": "SKIP"
+            },
         }
 
         if not args.retrieval_only:
+            retrieved_chunks = [
+                chunk
+                for _score, chunk in results
+            ]
+
             messages = build_rag_messages(
                 case["question"],
-                [
-                    chunk
-                    for _score, chunk in results
-                ],
+                retrieved_chunks,
             )
 
             payload = {
@@ -320,6 +383,12 @@ def main():
                     case,
                 )
 
+                item["citation_check"] = check_citation_support(
+                    answer,
+                    case,
+                    retrieved_chunks,
+                )
+
             except (
                 requests.RequestException,
                 KeyError,
@@ -349,7 +418,8 @@ def main():
         print(
             f"{index}. {case['id']}: "
             f"evidence {retrieval_label}, "
-            f"answer {item['answer_check']['status']}"
+            f"answer {item['answer_check']['status']}, "
+            f"citations {item['citation_check']['status']}"
         )
 
         if item["answer_check"].get(
@@ -358,6 +428,12 @@ def main():
             print(
                 f"   Review: "
                 f"{item['answer_check']['flagged_phrases']}"
+            )
+
+        if item["citation_check"].get("missing_support_groups"):
+            print(
+                "   Cited evidence missing: "
+                f"{item['citation_check']['missing_support_groups']}"
             )
 
     path = write_report(

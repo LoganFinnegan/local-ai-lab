@@ -1,4 +1,7 @@
+import pytest
+
 from vector_store import (
+    get_chunk_by_source_and_index,
     get_collection,
     index_chunks,
     search_collection,
@@ -290,3 +293,95 @@ def test_sync_collection_removes_deleted_document(
         ]
         == "keep.txt"
     )
+
+
+def test_exact_lookup_returns_correct_chunk(
+    tmp_path,
+):
+    collection = get_collection(
+        path=tmp_path / "chroma",
+        name="exact_lookup",
+    )
+
+    chunks = [
+        {
+            "source": "frankenstein.txt",
+            "file_hash": "frankenstein-hash",
+            "chunk_index": 136,
+            "text": "This is passage 136.",
+        },
+        {
+            "source": "frankenstein.txt",
+            "file_hash": "frankenstein-hash",
+            "chunk_index": 137,
+            "text": "This is passage 137.",
+        },
+    ]
+
+    embeddings = [
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+    ]
+
+    index_chunks(
+        collection,
+        chunks,
+        embeddings,
+    )
+
+    result = get_chunk_by_source_and_index(
+        collection,
+        "frankenstein.txt",
+        137,
+    )
+
+    assert result == {
+        "source": "frankenstein.txt",
+        "chunk_index": 137,
+        "text": "This is passage 137.",
+    }
+
+
+def test_exact_lookup_returns_none_when_missing(
+    tmp_path,
+):
+    collection = get_collection(
+        path=tmp_path / "chroma",
+        name="missing_lookup",
+    )
+
+    result = get_chunk_by_source_and_index(
+        collection,
+        "frankenstein.txt",
+        999,
+    )
+
+    assert result is None
+
+
+@pytest.mark.parametrize(
+    ("source", "chunk_index"),
+    [
+        ("", 137),
+        (None, 137),
+        ("frankenstein.txt", -1),
+        ("frankenstein.txt", "137"),
+        ("frankenstein.txt", True),
+    ],
+)
+def test_exact_lookup_rejects_invalid_identifiers(
+    tmp_path,
+    source,
+    chunk_index,
+):
+    collection = get_collection(
+        path=tmp_path / "chroma",
+        name="invalid_lookup",
+    )
+
+    with pytest.raises(ValueError):
+        get_chunk_by_source_and_index(
+            collection,
+            source,
+            chunk_index,
+        )
