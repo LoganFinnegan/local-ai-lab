@@ -23,9 +23,18 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Local application data
+# SQLite conversation data and temporary files
 data/*.db
+data/*.db-*
+data/*.sqlite
+data/*.sqlite-*
+data/*.sqlite3
+data/*.sqlite3-*
+
+# Local vector storage and embedding caches
 data/chroma/
 data/chroma_before_rechunk_*/
 data/fastembed_cache/
+
+# Generated evaluation reports
 data/rag_evaluations/

@@ -8,13 +8,12 @@ from citation_validation import check_citation_identifiers
 from context_manager import fit_messages_to_budget
 from database import (
     conversation_exists,
-    create_conversation,
     delete_conversation,
     initialize_database,
     list_conversations,
     load_messages,
-    save_message,
 )
+from chat_session import ChatSession
 from rag import (
     build_rag_messages,
     parse_source_command,
@@ -319,7 +318,8 @@ def choose_conversation():
             )
         )
 
-        print("Press Enter to start a new chat")
+        print("Press Enter to start a new saved chat")
+        print("Enter P to start a private chat (not saved)")
         print("Enter a conversation ID to resume")
         print("Enter D <ID> to delete a conversation")
 
@@ -330,6 +330,9 @@ def choose_conversation():
 
         if choice == "":
             return None
+
+        if choice.lower() == "p":
+            return "private"
 
         if choice.lower() == "m":
             if not has_more:
@@ -381,7 +384,7 @@ def choose_conversation():
         except ValueError:
             print(
                 "\nPlease enter a conversation ID, "
-                "D <ID>, M, or press Enter."
+                "D <ID>, M, P, or press Enter."
             )
             continue
 
@@ -423,12 +426,22 @@ else:
     input_token_budget = normal_input_token_budget
 
 
-conversation_id = choose_conversation()
+selection = choose_conversation()
+session = ChatSession(
+    conversation_id=selection if isinstance(selection, int) else None,
+    private=selection == "private",
+)
 
 messages = [SYSTEM_MESSAGE]
 
-if conversation_id is not None:
-    stored_messages = load_messages(conversation_id)
+if session.private:
+    print(
+        "\nStarted a private conversation. "
+        "Messages will not be saved to the application database."
+    )
+
+elif session.conversation_id is not None:
+    stored_messages = load_messages(session.conversation_id)
 
     for role, content in stored_messages:
         messages.append({
@@ -436,10 +449,10 @@ if conversation_id is not None:
             "content": content,
         })
 
-    print(f"\nResumed conversation {conversation_id}.")
+    print(f"\nResumed conversation {session.conversation_id}.")
 
 else:
-    print("\nStarted a new conversation.")
+    print("\nStarted a new saved conversation.")
 
 
 documents_enabled = False
@@ -453,7 +466,8 @@ print("\nType 'help' or '?' to see available commands.")
 
 
 while True:
-    prompt = input("\n>>> ")
+    prompt_label = "\n[private] >>> " if session.private else "\n>>> "
+    prompt = input(prompt_label)
 
     normalized_prompt = prompt.strip().lower()
 
@@ -534,19 +548,15 @@ while True:
     if source_response is not None:
         print(f"\n[Source]\n{source_response}")
 
-        if conversation_id is None:
-            title = make_title(prompt)
-            conversation_id = create_conversation(title)
-
         messages.append({
             "role": "user",
             "content": prompt,
         })
 
-        save_message(
-            conversation_id,
+        session.record_message(
             "user",
             prompt,
+            title=make_title(prompt),
         )
 
         messages.append({
@@ -554,8 +564,7 @@ while True:
             "content": source_response,
         })
 
-        save_message(
-            conversation_id,
+        session.record_message(
             "assistant",
             source_response,
         )
@@ -632,14 +641,10 @@ while True:
         print(f"\nCould not send message: {error}")
         continue
 
-    if conversation_id is None:
-        title = make_title(prompt)
-        conversation_id = create_conversation(title)
-
-    save_message(
-        conversation_id,
+    session.record_message(
         "user",
         prompt,
+        title=make_title(prompt),
     )
 
     if debug_enabled:
@@ -783,8 +788,7 @@ while True:
 
     messages.append(assistant_message)
 
-    save_message(
-        conversation_id,
+    session.record_message(
         "assistant",
         assistant_answer,
     )
