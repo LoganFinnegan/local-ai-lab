@@ -14,6 +14,7 @@ from database import (
     load_messages,
 )
 from chat_session import ChatSession
+from chat_history import history_response
 from rag import (
     build_rag_messages,
     parse_source_command,
@@ -123,6 +124,10 @@ def print_help():
             "Show or hide model reasoning output",
         ),
         (
+            "history [N]",
+            "Show this chat's messages (optionally the last N)",
+        ),
+        (
             "/source filename#N",
             (
                 "Display a cited passage "
@@ -130,7 +135,7 @@ def print_help():
             ),
         ),
         (
-            "exit, quit",
+            "q, exit, quit",
             "Exit the application",
         ),
     ]
@@ -322,11 +327,15 @@ def choose_conversation():
         print("Enter P to start a private chat (not saved)")
         print("Enter a conversation ID to resume")
         print("Enter D <ID> to delete a conversation")
+        print("Enter Q to exit")
 
         if has_more:
             print("Enter M to show more")
 
         choice = input("\n>>> ").strip()
+
+        if choice.lower() in ("q", "quit", "exit"):
+            return "exit"
 
         if choice == "":
             return None
@@ -384,7 +393,7 @@ def choose_conversation():
         except ValueError:
             print(
                 "\nPlease enter a conversation ID, "
-                "D <ID>, M, P, or press Enter."
+                "D <ID>, M, P, Q, or press Enter."
             )
             continue
 
@@ -396,6 +405,11 @@ def choose_conversation():
 
 
 initialize_database()
+
+selection = choose_conversation()
+
+if selection == "exit":
+    raise SystemExit(0)
 
 context_window_tokens = get_context_window_tokens()
 
@@ -426,7 +440,6 @@ else:
     input_token_budget = normal_input_token_budget
 
 
-selection = choose_conversation()
 session = ChatSession(
     conversation_id=selection if isinstance(selection, int) else None,
     private=selection == "private",
@@ -471,11 +484,24 @@ while True:
 
     normalized_prompt = prompt.strip().lower()
 
-    if normalized_prompt in ["exit", "quit"]:
+    if normalized_prompt in ["q", "exit", "quit"]:
         break
+
+    if not normalized_prompt:
+        continue
 
     if normalized_prompt in ["help", "?"]:
         print_help()
+        continue
+
+    history_text = history_response(
+        prompt,
+        messages,
+        private=session.private,
+    )
+
+    if history_text is not None:
+        print(f"\n{history_text}")
         continue
 
     if normalized_prompt in ["docs on", "/docs on"]:
@@ -666,7 +692,7 @@ while True:
 
             print(
                 f"Older context omitted: "
-                f"{omitted_tokens:,} tokens across "
+                f"{omitted_tokens} tokens across "
                 f"{omitted_messages} messages"
             )
 
