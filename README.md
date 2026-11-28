@@ -8,6 +8,14 @@ The application runs a quantized Qwen3-14B model locally on an AMD GPU. A Python
 
 The project emphasizes local control, reproducibility, application architecture, testing, and understanding how the different components interact.
 
+## Versioning
+
+Git tags identify tested release snapshots, beginning with the V1 baseline `v1.0.0`. GitHub Releases provide public release notes and downloadable source archives. The `master` branch remains the active development line; future features are developed and reviewed separately before merging.
+
+The capabilities below describe the current application. Items under **Potential Future Improvements** are not implemented features or commitments for V1.
+
+---
+
 ## Current Capabilities
 
 ### Local LLM Application
@@ -22,6 +30,7 @@ The project emphasizes local control, reproducibility, application architecture,
 - Conversation creation, resumption, and deletion
 - Automatic conversation titles
 - Private conversations that bypass SQLite message storage
+- Conversation-local `history` and `history N` display for saved chats
 - Runtime context-window detection
 - Token-aware context budgeting
 - Automatic truncation of older conversation turns
@@ -61,6 +70,8 @@ The project emphasizes local control, reproducibility, application architecture,
 - Unit tests for application components
 - Tests for persistent and private conversation behavior
 - Application startup tests without a running inference server
+- History display and conversation-isolation tests
+- Exit-command and empty-input tests
 - RAG prompt-construction tests
 - Citation validation tests
 - Retrieval and evaluation tests
@@ -71,7 +82,7 @@ The project emphasizes local control, reproducibility, application architecture,
 - Local model and embedding-cache persistence
 - Git exclusions for databases, model files, secrets, and generated reports
 
-The latest local verification completed with **74 passing tests**.
+The latest local verification completed with **98 passing tests**.
 
 ---
 
@@ -261,6 +272,14 @@ The complete saved history remains in SQLite even when older messages are exclud
 
 The model does not permanently remember conversations between requests. Conversation continuity is managed by the Python application.
 
+### Viewing Conversation History
+
+Inside a saved conversation, use `history` to reprint all user and assistant messages in that conversation, or `history N` to display only the last N individual messages. For example, `history 10` shows up to the ten most recent user/assistant messages, not ten pairs of turns.
+
+History is restricted to the currently selected conversation. It never searches or displays messages from another saved conversation, and it omits the system prompt. The command displays text already loaded into the active chat session; it does not contact the model or save additional messages.
+
+Invalid counts, such as `history banana`, `history 0`, or `history -1`, display the command usage rather than becoming model prompts.
+
 ### Private Conversations
 
 At startup, the user can select `P` to begin a private conversation.
@@ -273,6 +292,7 @@ Private conversations:
 - Maintain conversation context in application memory while running
 - Cannot resume an existing saved conversation
 - Are not available for resumption after the session ends
+- Use the current terminal scrollback for reviewing private messages; the `history` command does not reprint them
 
 The application displays a separate `[private] >>>` prompt to distinguish private conversations from saved ones.
 
@@ -766,6 +786,7 @@ At startup, the application allows users to:
 - Resume an existing saved conversation
 - Delete a saved conversation
 - Display additional saved conversations
+- Exit using `q`, `quit`, or `exit`
 
 ### Chat Commands
 
@@ -783,8 +804,10 @@ Commands work directly inside the normal conversation prompt.
 | `thinking on` | Display model reasoning output |
 | `thinking off` | Hide model reasoning output |
 | `thinking status` | Display reasoning visibility status |
+| `history` | Display all messages in the active saved conversation |
+| `history N` | Display the last N user/assistant messages in the active saved conversation |
 | `/source filename#N` | Display an indexed source passage |
-| `exit`, `quit` | Exit the application |
+| `q`, `quit`, `exit` | Exit the application from the current chat |
 
 Example source lookup:
 
@@ -797,6 +820,10 @@ The `thinking` setting controls whether reasoning output is displayed.
 It does not change the model's generation configuration.
 
 The `debug` setting controls the visibility of development information such as citation-validation results.
+
+The `q`, `quit`, and `exit` commands terminate the Python client from both the startup menu and an active chat. A blank or whitespace-only chat entry is ignored; it is not sent to the LLM or saved as a message.
+
+Private chats can be reviewed using terminal scrollback while the terminal content remains available. The `history` command does not retrieve or display private chat messages.
 
 ### Inspect Document Chunking
 
@@ -1059,6 +1086,7 @@ local-ai-lab/
 │   ├── monitor_gpu.sh
 │   └── start_llama_server.sh
 ├── src/
+│   ├── chat_history.py
 │   ├── chat_session.py
 │   ├── chunk_inspect.py
 │   ├── citation_validation.py
@@ -1073,6 +1101,8 @@ local-ai-lab/
 │   ├── retrieval_demo.py
 │   └── vector_store.py
 ├── tests/
+│   ├── test_chat_exit_commands.py
+│   ├── test_chat_history.py
 │   ├── test_chat_session.py
 │   ├── test_citation_validation.py
 │   ├── test_context_manager.py
@@ -1102,6 +1132,7 @@ The project separates responsibilities into focused modules:
 |---|---|
 | `llm_client.py` | Interactive conversation interface and inference requests |
 | `chat_session.py` | Saved and private session persistence behavior |
+| `chat_history.py` | Conversation-local history display and validation |
 | `database.py` | SQLite operations |
 | `context_manager.py` | Conversation token budgeting |
 | `rag.py` | Source-grounded prompt construction and citation references |
@@ -1154,6 +1185,10 @@ Automated tests cover:
 - Saved-session persistence
 - Rejection of invalid session combinations
 - Application startup behavior
+- Current-conversation history rendering and message count limits
+- History isolation between saved conversations
+- Private-history avoidance of saved-message retrieval
+- Startup and in-chat exit commands and ignored empty input
 - Context-budget calculations
 - Retaining recent complete conversation turns
 - Preserving the system message
@@ -1174,7 +1209,7 @@ Automated tests cover:
 The latest local test run completed with:
 
 ```text
-74 passed
+98 passed
 ```
 
 Most automated tests use controlled inputs, temporary data, or test doubles rather than making live model inference requests.
@@ -1242,7 +1277,7 @@ The example evaluation questions and public-domain test documents remain part of
 
 ### Private-Session Limitations
 
-Private mode prevents the application from writing conversation messages into its SQLite conversation database.
+Private mode prevents the application from writing conversation messages into its SQLite conversation database. The `history` command intentionally does not reconstruct private chats; users can read the current terminal scrollback while it remains available.
 
 It should not be interpreted as guaranteed secure erasure.
 
